@@ -214,3 +214,19 @@ pre.json { font-family: var(--mono); font-size: 11px; max-height: 360px; overflo
 }
 
 #autoSteps td:first-child, #autoSteps td.num, #repBody td.num, #repBody tr > td:first-child { white-space: nowrap; }
+
+/* 사이트 간 순환 화살표. 본문(최대 1180px)과 겹치지 않는 넓은 화면에서만 — 좁으면 조작 버튼을 가린다 */
+.portal-arrow {
+  position: fixed; top: 50%; transform: translateY(-50%); z-index: 90;
+  width: 44px; height: 44px; border-radius: 999px;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(255,255,255,0.85); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+  box-shadow: 0 1px 4px rgba(0,0,0,0.12); color: var(--text2); text-decoration: none;
+  transition: box-shadow 0.2s ease, color 0.2s ease;
+}
+.portal-arrow svg { width: 18px; height: 18px; }
+.portal-arrow:hover { color: var(--blue); box-shadow: 0 2px 10px rgba(0,0,0,0.16); }
+.portal-arrow.left { left: 14px; }
+.portal-arrow.right { right: 14px; }
+@media (max-width: 1240px) { .portal-arrow { display: none; } }
+@media print { .portal-nav { display: none !important; } }

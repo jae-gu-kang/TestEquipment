@@ -979,6 +979,11 @@ function init() {
   $('#logClear').addEventListener('click', () => { logBuf.length = 0; renderLog(); });
   $('#logHideStream').addEventListener('change', renderLog);
 
+  // 서보 연결 중 화살표·링크로 떠나면 시험이 끊기므로 브라우저 확인을 띄운다
+  window.addEventListener('beforeunload', (e) => {
+    if (state.connected) { e.preventDefault(); e.returnValue = ''; }
+  });
+
   showTab('manual');
   updateButtons();
   setInterval(liveTick, 100);

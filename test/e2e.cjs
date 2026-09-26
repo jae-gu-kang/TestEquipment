@@ -61,6 +61,9 @@ const SHORT = {
     await page.waitForFunction(() => window.__stb?.ready, { timeout: 5000 });
     check('페이지 로드·모듈 초기화', true);
     check('Chart.js 로컬 번들 로드', await page.evaluate(() => !!window.Chart));
+    const arrows = await page.$$eval('.portal-arrow', (as) => as.map((a) => `${a.classList.contains('left') ? 'L' : 'R'}:${a.href}`));
+    check('순환 화살표: 왼쪽 brain, 오른쪽 jaegukang.com',
+      arrows.join() === 'L:https://brain.jaegukang.com/,R:https://jaegukang.com/', arrows.join());
 
     await page.evaluate((p) => window.__stb.setProfile(p), SHORT);
 
@@ -160,9 +163,16 @@ const SHORT = {
     const logText = await page.$eval('#logView', (el) => el.textContent);
     check('CAN 로그 표시', /TX/.test(logText) && /RX/.test(logText));
 
+    const leaveGuard = () => page.evaluate(() => {
+      const e = new Event('beforeunload', { cancelable: true });
+      window.dispatchEvent(e);
+      return e.defaultPrevented;
+    });
+    check('연결 중 페이지 이탈 시 확인(beforeunload)', await leaveGuard() === true);
     await page.click('#disconnectBtn');
     await page.waitForFunction(() => !window.__stb.state.connected, { timeout: 5000 });
     check('연결 해제', true);
+    check('연결 해제 후에는 이탈 확인 없음', await leaveGuard() === false);
 
     check('페이지 오류 없음', errors.length === 0, errors.join(' | '));
   } finally {
