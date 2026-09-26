@@ -107,34 +107,28 @@
         <div>
           <div class="hero-eyebrow">자동 시험</div>
           <h2 class="hero-title">사전 점검 → 1 ~ 6 전 항목 → PASS / FAIL</h2>
-          <p class="hero-desc">한 항목이 FAIL 이어도 끝까지 수행하고, 사전 점검(기준 · 서보 응답 · 운전모드 · 위치 한계)이 FAIL 이면 시험하지 않습니다. 결과는 성적서에 기록됩니다.</p>
-        </div>
-        <div class="hero-actions">
-          <button id="autoStartBtn" class="btn-hero" disabled>
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.5v13l10.5-6.5z"/></svg>
-            자동 시험 시작
-          </button>
-          <div class="hero-sub-actions">
-            <button class="btn" data-stop disabled>중지</button>
-            <button id="autoReportBtn" class="btn" disabled>성적서 보기</button>
-          </div>
+          <p class="hero-desc">원을 눌러 시작 · FAIL 항목이 있어도 끝까지 수행 · 사전 점검(기준 · 응답 · 운전모드 · 위치 한계) FAIL 이면 중단 · 끝나면 원을 눌러 성적서 확인</p>
         </div>
       </div>
       <div class="viz">
-        <div class="ring-wrap">
-          <svg class="ring" viewBox="0 0 120 120" aria-hidden="true">
-            <defs>
-              <linearGradient id="ringGrad" x1="0" y1="0" x2="1" y2="1">
-                <stop offset="0%" stop-color="#30b0c7"/><stop offset="100%" stop-color="#0071e3"/>
-              </linearGradient>
-            </defs>
-            <circle class="ring-track" cx="60" cy="60" r="52"/>
-            <circle class="ring-fill" id="ringFill" cx="60" cy="60" r="52" stroke-dasharray="326.73" stroke-dashoffset="326.73"/>
-          </svg>
-          <div class="ring-center">
-            <div class="ring-pct" id="ringPct">0<small>%</small></div>
-            <div class="ring-label" id="ringLabel">대기</div>
-          </div>
+        <div class="ring-group">
+          <button id="ringBtn" class="ring-btn" data-phase="idle" disabled aria-label="자동 시험 시작">
+            <svg class="ring" viewBox="0 0 120 120" aria-hidden="true">
+              <defs>
+                <linearGradient id="ringGrad" x1="0" y1="0" x2="1" y2="1">
+                  <stop offset="0%" stop-color="#30b0c7"/><stop offset="100%" stop-color="#0071e3"/>
+                </linearGradient>
+              </defs>
+              <circle class="ring-track" cx="60" cy="60" r="52"/>
+              <circle class="ring-fill" id="ringFill" cx="60" cy="60" r="52" stroke-dasharray="326.73" stroke-dashoffset="326.73"/>
+            </svg>
+            <span class="ring-center">
+              <span class="ring-icon" id="ringIcon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.5v13l10.5-6.5z"/></svg></span>
+              <span class="ring-pct" id="ringPct" hidden></span>
+              <span class="ring-label" id="ringLabel">연결 후 시작</span>
+            </span>
+          </button>
+          <button id="ringSideBtn" class="ring-side" hidden></button>
         </div>
         <div class="viz-main">
           <div class="viz-stats">
@@ -142,10 +136,9 @@
             <div class="stat"><div class="k">남은 예상</div><div class="v" id="vizRemain">—</div></div>
             <div class="stat"><div class="k">PASS</div><div class="v pass" id="vizPass">0</div></div>
             <div class="stat"><div class="k">FAIL</div><div class="v fail" id="vizFail">0</div></div>
-            <span class="verdict" id="autoVerdict" hidden></span>
           </div>
           <div class="track" id="autoTrack"></div>
-          <div class="prog-text" id="autoText">연결 후 시작할 수 있습니다.</div>
+          <div class="prog-text" id="autoText" aria-live="polite">연결 후 시작할 수 있습니다.</div>
         </div>
       </div>
     </div>

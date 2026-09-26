@@ -4,3 +4,6 @@ docs/
 node_modules/
 package-lock.json
 .DS_Store
+
+# Claude Code 로컬 상태
+.claude/

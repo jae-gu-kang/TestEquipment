@@ -69,7 +69,10 @@ function showTab(k) {
   state.tab = k;
   $$('#tabs [data-tab]').forEach((b) => b.classList.toggle('active', b.dataset.tab === k));
   $$('.panel').forEach((p) => { p.hidden = p.dataset.panel !== k; });
-  if (k === 'report') renderReport();
+  if (k === 'report') {
+    renderReport();
+    if (auto.verdict && state.autoReport && !state.batch && !auto.reportSeen) { auto.reportSeen = true; renderAutoViz(); }
+  }
   if (k === 'settings') renderSettingsExtras();
   if (k === 'log') renderLog();
   if (k === 'temp') updateTempChart();
@@ -201,10 +204,8 @@ function renderSettingsExtras() {
 // ─── 버튼 상태 ───────────────────────────────────────────
 function updateButtons() {
   const busy = !!state.running || state.batch;
-  const canRun = state.connected && !busy && !state.estop && !profileErrors.length;
+  const canRun = canStartAuto();
   $$('[data-run]').forEach((b) => { b.disabled = !canRun; });
-  $('#autoStartBtn').disabled = !canRun;
-  $('#autoReportBtn').disabled = !state.autoReport;
   $$('[data-stop]').forEach((b) => { b.disabled = !busy; });
   $('#manSend').disabled = !state.connected || busy || state.estop;
   $('#setupBtn').disabled = !state.connected || busy;
@@ -220,9 +221,11 @@ function updateButtons() {
   $('#connDot').className = 'conn-dot' + (state.connected ? (state.estop ? ' warn' : ' on') : '');
   $('#connTitle').textContent = pill.textContent;
   updateConnSummary();
-  const hero = $('#autoStartBtn');
-  hero.classList.toggle('running', state.batch);
-  hero.lastChild.textContent = state.batch ? ' 자동 시험 진행 중…' : ' 자동 시험 시작';
+  renderAutoViz();
+}
+
+function canStartAuto() {
+  return state.connected && !state.running && !state.batch && !state.estop && !profileErrors.length;
 }
 
 function updateConnSummary() {
@@ -450,7 +453,10 @@ function renderAutoSteps() {
 
 // 전체 진행 그래프: 원형 진행률 + 예상 소요시간 비례 트랙
 const RING_C = 2 * Math.PI * 52;
-const auto = { est: [], t0: null, t1: null, verdict: null };
+const ICON_STOP = '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6.5" y="6.5" width="11" height="11" rx="2"/></svg>';
+const ICON_RESTART = '<svg viewBox="0 0 24 24" aria-hidden="true" class="stroke"><path d="M19 12a7 7 0 1 1-2.05-4.95"/><path d="M19 4.5v4h-4"/></svg>';
+// reportSeen: 완료 후 성적서를 한 번 보면 원이 다시 시작 버튼으로 돌아간다(트랙·결과표는 직전 결과 유지)
+const auto = { est: [], t0: null, t1: null, verdict: null, reportSeen: false };
 const mmss = (sec) => {
   if (sec == null || !Number.isFinite(sec)) return '—';
   const s = Math.max(0, Math.round(sec));
@@ -479,20 +485,56 @@ function renderAutoViz() {
   const p = autoProgress(auto.est, autoView);
   const running = state.batch && auto.t0 != null;
   const fin = auto.verdict;
+  // 원 하나가 대기(시작 버튼) → 진행(진행률) → 완료(판정 · 성적서 보기)로 역할을 바꾼다
+  const phase = running ? 'run' : fin && !auto.reportSeen ? 'done' : 'idle';
+  const canRun = canStartAuto();
+  const verdictTxt = { pass: 'PASS', fail: 'FAIL', aborted: '중단', error: '오류' }[fin] ?? '';
+  // 오류로 끝나면 성적서가 없으므로 원은 '다시 시도'가 된다
+  const hasReport = !!state.autoReport;
+  const lt = running ? '진행 중' : verdictTxt || '대기';
+  const failed = phase === 'done' && fin !== 'pass';
   const fill = $('#ringFill');
   fill.style.strokeDasharray = `${RING_C}`;
-  fill.style.strokeDashoffset = `${RING_C * (1 - p.frac)}`;
-  fill.classList.toggle('pass', !running && fin === 'pass');
-  fill.classList.toggle('fail', !running && (fin === 'fail' || fin === 'aborted'));
-  $('#ringPct').innerHTML = `${Math.round(p.frac * 100)}<small>%</small>`;
-  const label = $('#ringLabel');
-  const [lt, lc] = running ? ['진행 중', ''] : fin === 'pass' ? ['PASS', 'pass'] : fin === 'fail' ? ['FAIL', 'fail'] : fin === 'aborted' ? ['중단', 'fail'] : ['대기', ''];
-  label.textContent = lt;
-  label.className = 'ring-label ' + lc;
+  fill.style.strokeDashoffset = `${RING_C * (1 - (phase === 'idle' ? 0 : p.frac))}`;
+  fill.classList.toggle('pass', phase === 'done' && !failed);
+  fill.classList.toggle('fail', failed);
+  const btn = $('#ringBtn');
+  btn.dataset.phase = phase;
+  btn.classList.toggle('fail', failed);
+  btn.disabled = phase === 'run' || (phase === 'idle' && !canRun);
+  const idleLabel = canRun ? '자동 시험 시작' : profileErrors.length ? '기준 오류' : state.estop ? '비상정지' : state.connected ? '대기 중' : '연결 후 시작';
+  const doneLabel = hasReport ? '성적서 보기 ›' : '다시 시도';
+  const label = phase === 'idle' ? idleLabel : phase === 'run' ? '진행 중' : doneLabel;
+  btn.setAttribute('aria-label', phase === 'done' ? `${verdictTxt} — ${doneLabel}` : phase === 'run' ? `진행 중 ${Math.round(p.frac * 100)}%` : label);
+  btn.disabled = btn.disabled || (phase === 'done' && !hasReport && !canRun);
+  $('#ringIcon').hidden = phase !== 'idle';
+  const pct = $('#ringPct');
+  pct.hidden = phase === 'idle';
+  pct.className = 'ring-pct' + (phase === 'done' ? (failed ? ' big fail' : ' big pass') : '');
+  pct.innerHTML = phase === 'run' ? `${Math.round(p.frac * 100)}<small>%</small>` : esc(verdictTxt);
+  $('#ringLabel').textContent = label;
+  if (phase === 'idle') {
+    $('#autoText').textContent = canRun ? '가운데 원을 눌러 자동 시험을 시작합니다.'
+      : profileErrors.length ? '기준 설정 오류를 먼저 고쳐 주세요.'
+        : state.estop ? '비상정지를 해제한 뒤 시작할 수 있습니다.'
+          : state.connected ? '진행 중인 시험이 끝나면 시작할 수 있습니다.' : '연결 후 시작할 수 있습니다.';
+  }
+  const side = $('#ringSideBtn');
+  const kind = phase === 'run' ? 'stop' : 'restart';
+  side.hidden = phase === 'idle';
+  side.disabled = phase === 'done' && !canRun;
+  if (side.dataset.kind !== kind) {
+    side.dataset.kind = kind;
+    side.className = 'ring-side ' + kind;
+    const name = kind === 'stop' ? '중지' : '다시 시작';
+    side.title = name;
+    side.setAttribute('aria-label', name);
+    side.innerHTML = kind === 'stop' ? ICON_STOP : ICON_RESTART;
+  }
   const elapsed = auto.t0 != null ? ((auto.t1 ?? performance.now()) - auto.t0) / 1000 : 0;
   $('#vizElapsed').textContent = mmss(elapsed);
-  $('#vizRemain').previousElementSibling.textContent = running || fin ? '남은 예상' : '예상 소요';
-  $('#vizRemain').textContent = mmss(running ? p.remainingSec : fin ? 0 : p.totalSec);
+  $('#vizRemain').previousElementSibling.textContent = phase === 'idle' ? '예상 소요' : '남은 예상';
+  $('#vizRemain').textContent = mmss(phase === 'run' ? p.remainingSec : phase === 'done' ? 0 : p.totalSec);
   $('#vizPass').textContent = p.pass;
   $('#vizFail').textContent = p.fail;
   for (const seg of $$('#autoTrack [data-seg]')) {
@@ -501,7 +543,7 @@ function renderAutoViz() {
     $('.seg-fill', seg).style.width = v.status === 'run' ? `${Math.round((v.frac ?? 0) * 100)}%` : '';
   }
   const chip = $('#autoChip');
-  chip.hidden = !running && !fin;
+  chip.hidden = phase === 'idle';
   chip.className = 'auto-chip' + (!running && fin ? (fin === 'pass' ? ' pass' : ' fail') : '');
   chip.textContent = running ? `자동 시험 ${Math.round(p.frac * 100)}% · ${mmss(p.remainingSec)} 남음` : `자동 시험 ${lt}`;
 }
@@ -517,6 +559,7 @@ function onAutoEvent(e) {
 
 async function runAutoUI() {
   if (profileErrors.length) { showTab('settings'); return; }
+  if (!canStartAuto()) return;
   const prof = JSON.parse(JSON.stringify(profile));
   state.batch = true;
   state.ac = new AbortController();
@@ -525,14 +568,14 @@ async function runAutoUI() {
   for (const t of TESTS) { clearResult(t.key); setProgress(t.key, 0, ''); }
   state.autoReport = null;
   autoView = Object.fromEntries(AUTO_STEPS.map((s) => [s.key, { status: 'wait', text: '' }]));
-  Object.assign(auto, { est: estimateSteps(prof), t0: performance.now(), t1: null, verdict: null });
+  Object.assign(auto, { est: estimateSteps(prof), t0: performance.now(), t1: null, verdict: null, reportSeen: false });
   buildTrack();
-  $('#autoVerdict').hidden = true;
   $('#autoText').textContent = '사전 점검 중…';
   renderAutoSteps();
   updateButtons();
   updateDots();
   renderAutoViz();
+  $('#ringSideBtn').focus();
   try {
     const rep = await runAuto({ servo: state.servo, profile: prof, signal: state.ac.signal, onEvent: onAutoEvent }, state.monitor);
     if (state.hiddenDuring) {
@@ -545,15 +588,10 @@ async function runAutoUI() {
       if (results[t.key]) { renderResult(t.key); setProgress(t.key, 1, `자동 시험 · ${new Date(results[t.key].at).toLocaleTimeString()}`); }
     }
     auto.verdict = rep.aborted ? 'aborted' : rep.pass ? 'pass' : 'fail';
-    const [txt, cls] = rep.aborted ? ['중단 · FAIL', 'fail'] : verdictText(rep.pass);
-    const v = $('#autoVerdict');
-    v.hidden = false;
-    v.className = 'verdict ' + cls;
-    v.textContent = txt;
     $('#autoText').textContent = `${rep.aborted ? '중지됨' : '완료'} · 소요 ${rep.durationS.toFixed(1)} s — 성적서에 기록했습니다`;
     renderReport();
   } catch (e) {
-    auto.verdict = 'fail';
+    auto.verdict = 'error';
     $('#autoText').textContent = `오류: ${e.message}`;
   } finally {
     auto.t1 = performance.now();
@@ -1081,8 +1119,16 @@ function init() {
     updateButtons();
     msg('비상정지 해제 — 현재 위치를 명령으로 유지', 'ok');
   });
-  $('#autoStartBtn').addEventListener('click', runAutoUI);
-  $('#autoReportBtn').addEventListener('click', () => showTab('report'));
+  $('#ringBtn').addEventListener('click', () => {
+    const ph = $('#ringBtn').dataset.phase;
+    if (ph === 'idle') runAutoUI();
+    else if (ph === 'done') { if (state.autoReport) showTab('report'); else runAutoUI(); }
+  });
+  $('#ringSideBtn').addEventListener('click', () => {
+    const ph = $('#ringBtn').dataset.phase;
+    if (ph === 'run') state.ac?.abort();
+    else if (ph === 'done' && canStartAuto()) runAutoUI();
+  });
   renderAutoSteps();
   $('#exportJsonBtn').addEventListener('click', exportJson);
   $('#exportCsvBtn').addEventListener('click', exportCsv);

@@ -68,7 +68,7 @@ const SHORT = {
     await page.evaluate((p) => window.__stb.setProfile(p), SHORT);
 
     const layout = await page.evaluate(() => {
-      const hero = document.querySelector('#autoStartBtn').getBoundingClientRect();
+      const hero = document.querySelector('#ringBtn').getBoundingClientRect();
       return {
         firstTab: document.querySelector('#tabs button').dataset.tab,
         autoVisible: !document.querySelector('[data-panel=auto]').hidden,
@@ -76,11 +76,21 @@ const SHORT = {
         folds: document.querySelectorAll('details.fold').length,
         openFolds: document.querySelectorAll('details.fold[open]').length,
         segs: document.querySelectorAll('#autoTrack .seg').length,
+        ring: { phase: document.querySelector('#ringBtn').dataset.phase, disabled: document.querySelector('#ringBtn').disabled, label: document.querySelector('#ringLabel').textContent },
       };
     });
-    check('자동 시험이 첫 탭·기본 화면, 시작 버튼이 크게', layout.firstTab === 'auto' && layout.autoVisible && layout.heroH >= 50 && layout.heroW >= 240, JSON.stringify(layout));
+    check('자동 시험이 첫 탭·기본 화면, 원형 시작 버튼이 크게', layout.firstTab === 'auto' && layout.autoVisible && layout.heroH >= 150 && layout.heroW >= 150, JSON.stringify(layout));
+    check('연결 전 원형 버튼은 비활성 "연결 후 시작"', layout.ring.phase === 'idle' && layout.ring.disabled && layout.ring.label === '연결 후 시작', JSON.stringify(layout.ring));
+    check('예전 시작·성적서 버튼은 제거', await page.evaluate(() => !document.querySelector('#autoStartBtn') && !document.querySelector('#autoReportBtn')));
     check('설정 섹션은 모두 접힘', layout.folds >= 11 && layout.openFolds === 0, `${layout.openFolds}/${layout.folds} 열림`);
     check('진행 트랙: 7단계', layout.segs === 7);
+    const desc = await page.$eval('.hero-desc', (el) => ({ h: el.getBoundingClientRect().height, lh: parseFloat(getComputedStyle(el).lineHeight) }));
+    check('자동 시험 설명은 한 줄(1280px)', desc.h < desc.lh * 1.5, JSON.stringify(desc));
+    const side = await page.evaluate(() => {
+      const r = document.querySelector('.ring-group').getBoundingClientRect(), m = document.querySelector('.viz-main').getBoundingClientRect();
+      return { ringRight: r.right, mainLeft: m.left, sameRow: Math.abs((r.top + r.bottom) / 2 - (m.top + m.bottom) / 2) < 60 };
+    });
+    check('원형 버튼 옆에 진행 통계·트랙이 가로 배치', side.ringRight <= side.mainLeft && side.sameRow, JSON.stringify(side));
     await shot('00_start');
 
     await page.click('#connectBtn');
@@ -97,7 +107,16 @@ const SHORT = {
     await shot('0_manual');
 
     await page.click('[data-tab=auto]');
-    await page.click('#autoStartBtn');
+    const ready = await page.evaluate(() => ({ disabled: document.querySelector('#ringBtn').disabled, label: document.querySelector('#ringLabel').textContent, hint: document.querySelector('#autoText').textContent }));
+    check('연결 후 원형 버튼이 "자동 시험 시작"으로 활성, 안내 문구 갱신', !ready.disabled && ready.label === '자동 시험 시작' && /원을 눌러/.test(ready.hint), JSON.stringify(ready));
+    await shot('00b_ready');
+    await page.click('#ringBtn');
+    const runUi = await page.evaluate(() => ({
+      phase: document.querySelector('#ringBtn').dataset.phase, disabled: document.querySelector('#ringBtn').disabled,
+      side: document.querySelector('#ringSideBtn').hidden ? null : document.querySelector('#ringSideBtn').dataset.kind,
+      focus: document.activeElement?.id,
+    }));
+    check('진행 중: 원형은 진행률(비활성), 옆 작은 원은 중지(포커스 이동)', runUi.phase === 'run' && runUi.disabled && runUi.side === 'stop' && runUi.focus === 'ringSideBtn', JSON.stringify(runUi));
     if (SHOT_DIR) { await new Promise((r) => setTimeout(r, 3000)); await shot('6_running'); }
     await page.waitForFunction(() => window.__stb.state.autoReport && !window.__stb.state.batch, { timeout: 120000 });
     const auto = await page.evaluate(() => {
@@ -107,21 +126,28 @@ const SHORT = {
     check('자동 시험: 사전 점검 + 6개 항목 수행', auto.keys.join() === 'pre,comm,square,stair,slew,freq,temp', auto.keys.join());
     check('자동 시험: 각 단계 판정', auto.final.every((s) => /:(pass|info)$/.test(s)), auto.final.join(' '));
     check('자동 시험: 종합 PASS', auto.pass === true && !auto.aborted);
-    const autoUi = await page.evaluate(() => ({ verdict: document.querySelector('#autoVerdict').textContent, rows: document.querySelectorAll('#autoSteps tr').length }));
-    check('자동 시험 탭: 종합 판정·단계표 표시', autoUi.verdict === 'PASS' && autoUi.rows === 8, JSON.stringify(autoUi));
-    const viz = await page.evaluate(() => ({
-      pct: document.querySelector('#ringPct').textContent,
+    const autoUi = await page.evaluate(() => ({
+      phase: document.querySelector('#ringBtn').dataset.phase,
+      verdict: document.querySelector('#ringPct').textContent,
       label: document.querySelector('#ringLabel').textContent,
+      side: document.querySelector('#ringSideBtn').dataset.kind,
+      rows: document.querySelectorAll('#autoSteps tr').length,
+    }));
+    check('완료: 원형에 PASS·"성적서 보기", 작은 원은 다시 시작', autoUi.phase === 'done' && autoUi.verdict === 'PASS'
+      && /성적서 보기/.test(autoUi.label) && autoUi.side === 'restart' && autoUi.rows === 8, JSON.stringify(autoUi));
+    const viz = await page.evaluate(() => ({
+      ringOffset: parseFloat(document.querySelector('#ringFill').style.strokeDashoffset),
+      label: document.querySelector('#ringPct').textContent,
       segs: [...document.querySelectorAll('#autoTrack .seg')].map((s) => s.className.replace('seg', '').trim()),
       chip: document.querySelector('#autoChip').hidden ? null : document.querySelector('#autoChip').textContent,
       pass: document.querySelector('#vizPass').textContent,
     }));
-    check('전체 진행 그래프: 100%·판정 색 채움·칩', viz.pct.startsWith('100') && viz.label === 'PASS'
+    check('전체 진행 그래프: 링 가득·판정 색 채움·칩', Math.abs(viz.ringOffset) < 0.5 && viz.label === 'PASS'
       && viz.segs.every((c) => c === 'pass' || c === 'info') && /PASS/.test(viz.chip ?? ''), JSON.stringify(viz));
     await new Promise((r) => setTimeout(r, 500));
     await shot('6a_auto');
 
-    await page.click('#autoReportBtn');
+    await page.click('#ringBtn');
     const rep = await page.evaluate(() => ({
       visible: !document.querySelector('[data-panel=report]').hidden,
       text: document.querySelector('#reportView').innerText,
@@ -132,6 +158,16 @@ const SHORT = {
     check('성적서: 사전 점검 + 6개 항목 상세', rep.items === 7, `${rep.items}개`);
     check('성적서: 항목별 그래프', rep.charts >= 7, `${rep.charts}개`);
     check('성적서: 자동 시험 실행 내역', /자동 시험 실행 내역/.test(rep.text) && /사전 점검/.test(rep.text));
+    await page.click('[data-tab=auto]');
+    const back = await page.evaluate(() => ({
+      phase: document.querySelector('#ringBtn').dataset.phase,
+      label: document.querySelector('#ringLabel').textContent,
+      side: document.querySelector('#ringSideBtn').hidden,
+      chip: document.querySelector('#autoChip').hidden,
+      track: [...document.querySelectorAll('#autoTrack .seg')].filter((s) => /pass|info/.test(s.className)).length,
+    }));
+    check('성적서를 보고 나면 원이 다시 "자동 시험 시작"(트랙은 직전 결과 유지)', back.phase === 'idle' && back.label === '자동 시험 시작'
+      && back.side && back.chip && back.track === 7, JSON.stringify(back));
     await shot('7_report');
 
     for (const k of ['square', 'slew', 'freq', 'temp']) {
@@ -162,6 +198,8 @@ const SHORT = {
     await new Promise((r) => setTimeout(r, 100));
     const pc = await page.evaluate(() => window.__stb.transport.servo.regs.get(0x46));
     check('비상정지 → POWER_CONFIG = 0x0200 (Motor Free)', pc === 0x200, String(pc));
+    const es = await page.evaluate(() => ({ label: document.querySelector('#ringLabel').textContent, disabled: document.querySelector('#ringBtn').disabled, hint: document.querySelector('#autoText').textContent }));
+    check('비상정지 중 원형은 "비상정지"로 비활성, 해제 안내', es.label === '비상정지' && es.disabled && /비상정지를 해제/.test(es.hint), JSON.stringify(es));
     await page.click('#estopReleaseBtn');
     await new Promise((r) => setTimeout(r, 100));
     const pc2 = await page.evaluate(() => window.__stb.transport.servo.regs.get(0x46));
@@ -200,6 +238,24 @@ const SHORT = {
     const sub = await page.$eval('#appSub', (el) => el.textContent);
     check('작동기 설정 → 제목 반영', /TEST-X/.test(sub), sub);
     await page.$eval('[data-field="actuator.model"]', (el) => { el.value = 'MDB961WP-CAN 28V'; el.dispatchEvent(new Event('change', { bubbles: true })); });
+
+    await page.click('[data-tab=auto]');
+    await page.click('#ringBtn');
+    await page.waitForFunction(() => window.__stb.state.batch, { timeout: 3000 });
+    await new Promise((r) => setTimeout(r, 400));
+    await page.click('#ringSideBtn');
+    await page.waitForFunction(() => !window.__stb.state.batch, { timeout: 10000 });
+    const stopped = await page.evaluate(() => ({ pct: document.querySelector('#ringPct').textContent, aborted: window.__stb.state.autoReport.aborted }));
+    check('원으로 시작 → 작은 원으로 중지 → 원형에 "중단"', stopped.pct === '중단' && stopped.aborted === true, JSON.stringify(stopped));
+    await page.click('#ringSideBtn');
+    const restarted = await page.evaluate(() => ({ batch: window.__stb.state.batch, report: window.__stb.state.autoReport }));
+    check('완료 상태의 작은 원(↻)으로 새 자동 시험 시작', restarted.batch === true && restarted.report === null, JSON.stringify(restarted));
+    await page.click('#ringSideBtn');
+    await page.waitForFunction(() => !window.__stb.state.batch, { timeout: 10000 });
+    await page.click('[data-tab=report]');
+    await page.click('[data-tab=auto]');
+    const viaTab = await page.evaluate(() => document.querySelector('#ringBtn').dataset.phase);
+    check('성적서를 탭으로 열어도 원이 시작 버튼으로 복귀', viaTab === 'idle', viaTab);
 
     await page.click('[data-tab=log]');
     await new Promise((r) => setTimeout(r, 400));
