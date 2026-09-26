@@ -1,0 +1,10 @@
+{
+  "name": "servo-test-bench",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test js/*.test.js",
+    "e2e": "node test/e2e.cjs",
+    "serve": "python3 -m http.server 8080"
+  }
+}
