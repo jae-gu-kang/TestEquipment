@@ -25,9 +25,10 @@
     <div class="titlebar-divider"></div>
     <div class="app-icon"><svg viewBox="0 0 24 24"><path d="M3 12h4l3-8 4 16 3-8h4"/></svg></div>
     <span class="app-name">작동기 점검장비</span>
-    <span class="app-sub">Hitec MDB961WP-CAN 28V · CAN 2.0A/B</span>
+    <span class="app-sub" id="appSub">Hitec MDB961WP-CAN 28V · CAN 2.0A/B</span>
   </div>
   <div class="titlebar-right">
+    <button id="autoChip" class="auto-chip" hidden></button>
     <span id="connPill" class="pill off">연결 안 됨</span>
     <button id="estopBtn" class="estop" disabled title="POWER_CONFIG(0x46) bit10-9 = 1 (Motor Free) · 실물에서 동작 확인 필요">비상정지</button>
     <button id="estopReleaseBtn" class="btn small" disabled>해제</button>
@@ -36,7 +37,23 @@
 
 <main class="wrap">
   <section class="card conn">
-    <div class="row">
+    <div class="conn-bar">
+      <div class="conn-state">
+        <span class="conn-dot" id="connDot"></span>
+        <div>
+          <div class="conn-title" id="connTitle">연결 안 됨</div>
+          <div class="conn-sub" id="connSub"></div>
+        </div>
+      </div>
+      <div class="conn-actions">
+        <button id="connectBtn" class="btn primary">연결</button>
+        <button id="disconnectBtn" class="btn" disabled>해제</button>
+        <button id="setupBtn" class="btn" disabled title="기준 설정 › 시험 전 서보 설정 값을 서보에 씀">시험 전 설정 적용</button>
+      </div>
+    </div>
+    <details class="fold" id="connFold">
+      <summary>통신 설정</summary>
+      <div class="row fold-body">
       <label class="field"><span>전송수단</span>
         <select id="transport">
           <option value="sim">시뮬레이터 (하드웨어 없음)</option>
@@ -65,10 +82,8 @@
       <label class="field"><span>송신 CAN ID</span><input id="canId" type="text" value="0x000" size="10"></label>
       <label class="field check"><input id="canExt" type="checkbox"> 확장 ID (2.0B)</label>
       <label class="field" id="simLossField"><span>시뮬 패킷 손실 %</span><input id="simLoss" type="number" min="0" max="100" step="0.1" value="0"></label>
-      <button id="connectBtn" class="btn primary">연결</button>
-      <button id="disconnectBtn" class="btn" disabled>해제</button>
-      <button id="setupBtn" class="btn" disabled title="기준 설정 › 시험 전 서보 설정 값을 서보에 씀">시험 전 설정 적용</button>
-    </div>
+      </div>
+    </details>
     <div id="adapterMsg" class="msg"></div>
     <div id="connMsg" class="msg"></div>
   </section>
@@ -86,7 +101,58 @@
   <nav class="tabs" id="tabs"></nav>
   <div id="profBanner" class="banner" hidden></div>
 
-  <section class="panel" data-panel="manual">
+  <section class="panel" data-panel="auto">
+    <div class="card hero">
+      <div class="hero-head">
+        <div>
+          <div class="hero-eyebrow">자동 시험</div>
+          <h2 class="hero-title">사전 점검 → 1 ~ 6 전 항목 → PASS / FAIL</h2>
+          <p class="hero-desc">한 항목이 FAIL 이어도 끝까지 수행하고, 사전 점검(기준 · 서보 응답 · 운전모드 · 위치 한계)이 FAIL 이면 시험하지 않습니다. 결과는 성적서에 기록됩니다.</p>
+        </div>
+        <div class="hero-actions">
+          <button id="autoStartBtn" class="btn-hero" disabled>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.5v13l10.5-6.5z"/></svg>
+            자동 시험 시작
+          </button>
+          <div class="hero-sub-actions">
+            <button class="btn" data-stop disabled>중지</button>
+            <button id="autoReportBtn" class="btn" disabled>성적서 보기</button>
+          </div>
+        </div>
+      </div>
+      <div class="viz">
+        <div class="ring-wrap">
+          <svg class="ring" viewBox="0 0 120 120" aria-hidden="true">
+            <defs>
+              <linearGradient id="ringGrad" x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0%" stop-color="#30b0c7"/><stop offset="100%" stop-color="#0071e3"/>
+              </linearGradient>
+            </defs>
+            <circle class="ring-track" cx="60" cy="60" r="52"/>
+            <circle class="ring-fill" id="ringFill" cx="60" cy="60" r="52" stroke-dasharray="326.73" stroke-dashoffset="326.73"/>
+          </svg>
+          <div class="ring-center">
+            <div class="ring-pct" id="ringPct">0<small>%</small></div>
+            <div class="ring-label" id="ringLabel">대기</div>
+          </div>
+        </div>
+        <div class="viz-main">
+          <div class="viz-stats">
+            <div class="stat"><div class="k">경과</div><div class="v" id="vizElapsed">0:00</div></div>
+            <div class="stat"><div class="k">남은 예상</div><div class="v" id="vizRemain">—</div></div>
+            <div class="stat"><div class="k">PASS</div><div class="v pass" id="vizPass">0</div></div>
+            <div class="stat"><div class="k">FAIL</div><div class="v fail" id="vizFail">0</div></div>
+            <span class="verdict" id="autoVerdict" hidden></span>
+          </div>
+          <div class="track" id="autoTrack"></div>
+          <div class="prog-text" id="autoText">연결 후 시작할 수 있습니다.</div>
+        </div>
+      </div>
+    </div>
+    <div class="card"><div class="s-title">단계별 결과</div><table id="autoSteps"></table></div>
+  </section>
+
+  <section class="panel" data-panel="manual" hidden>
     <div class="grid">
       <div class="card">
         <div class="s-title">0. 수동 명령</div>
@@ -120,25 +186,6 @@
 
   <div id="testPanels"></div>
 
-  <section class="panel" data-panel="auto" hidden>
-    <div class="card">
-      <div class="s-title">자동 시험 — 사전 점검 → 1 ~ 6 전 항목 → PASS / FAIL 판정</div>
-      <p class="hint" style="margin:0 0 12px">
-        한 항목이 FAIL 이어도 나머지는 끝까지 수행합니다. 사전 점검(기준 오류 · 서보 무응답 · 운전모드 · 위치 한계)이 FAIL 이면 시험하지 않습니다.
-        결과는 성적서에 자동 기록되며, 판정 기준은 기준 설정과 각 시험 탭에서 바꿉니다.
-      </p>
-      <div class="run-row">
-        <button id="autoStartBtn" class="btn primary" disabled>자동 시험 시작</button>
-        <button class="btn" data-stop disabled>중지</button>
-        <button id="autoReportBtn" class="btn" disabled>성적서 보기</button>
-        <span class="verdict" id="autoVerdict" hidden></span>
-      </div>
-      <div class="progress"><div class="bar" id="autoBar"></div></div>
-      <div class="prog-text" id="autoText"></div>
-    </div>
-    <div class="card"><table id="autoSteps"></table></div>
-  </section>
-
   <section class="panel" data-panel="report" hidden>
     <div class="card report-controls">
       <div class="row">
@@ -167,12 +214,11 @@
       </div>
       <div id="profMsg" class="msg">기준을 바꾸면 이 브라우저에 자동 저장됩니다. 성적서에는 시험 당시 기준이 함께 기록됩니다.</div>
     </div>
-    <div class="grid">
-      <div class="card"><div class="s-title">공통</div><div class="form" data-form="general"></div></div>
-      <div class="card"><div class="s-title">시험 전 서보 설정 (휘발성 · SAVE 안 함)</div><div class="form" data-form="setup"></div></div>
-    </div>
-    <div class="card"><div class="s-title">전체 합격 기준</div><table id="critTable"></table></div>
-    <div class="card"><details><summary>프로파일 JSON</summary><pre class="json" id="profJson"></pre></details></div>
+    <details class="card fold"><summary>작동기 <span class="fold-hint" data-foldhint="actuator"></span></summary><div class="form fold-body" data-form="actuator"></div></details>
+    <details class="card fold"><summary>공통 <span class="fold-hint" data-foldhint="general"></span></summary><div class="form fold-body" data-form="general"></div></details>
+    <details class="card fold"><summary>시험 전 서보 설정 <span class="fold-hint">휘발성 · SAVE 안 함</span></summary><div class="form fold-body" data-form="setup"></div></details>
+    <details class="card fold"><summary>전체 합격 기준</summary><div class="fold-body"><table id="critTable"></table></div></details>
+    <details class="card fold"><summary>프로파일 JSON</summary><pre class="json fold-body" id="profJson"></pre></details>
   </section>
 
   <section class="panel" data-panel="log" hidden>

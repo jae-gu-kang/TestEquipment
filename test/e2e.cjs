@@ -67,11 +67,28 @@ const SHORT = {
 
     await page.evaluate((p) => window.__stb.setProfile(p), SHORT);
 
+    const layout = await page.evaluate(() => {
+      const hero = document.querySelector('#autoStartBtn').getBoundingClientRect();
+      return {
+        firstTab: document.querySelector('#tabs button').dataset.tab,
+        autoVisible: !document.querySelector('[data-panel=auto]').hidden,
+        heroH: hero.height, heroW: hero.width,
+        folds: document.querySelectorAll('details.fold').length,
+        openFolds: document.querySelectorAll('details.fold[open]').length,
+        segs: document.querySelectorAll('#autoTrack .seg').length,
+      };
+    });
+    check('자동 시험이 첫 탭·기본 화면, 시작 버튼이 크게', layout.firstTab === 'auto' && layout.autoVisible && layout.heroH >= 50 && layout.heroW >= 240, JSON.stringify(layout));
+    check('설정 섹션은 모두 접힘', layout.folds >= 11 && layout.openFolds === 0, `${layout.openFolds}/${layout.folds} 열림`);
+    check('진행 트랙: 7단계', layout.segs === 7);
+    await shot('00_start');
+
     await page.click('#connectBtn');
     await page.waitForFunction(() => window.__stb.state.connected && window.__stb.live.fbDeg != null, { timeout: 5000 });
     const info = await page.evaluate(() => window.__stb.state.info);
     check('시뮬레이터 연결·제품번호 응답', info.product === 961, JSON.stringify(info));
 
+    await page.click('[data-tab=manual]');
     await page.$eval('#manDeg', (el) => { el.value = '10'; });
     await page.click('#manSend');
     await new Promise((r) => setTimeout(r, 800));
@@ -81,6 +98,7 @@ const SHORT = {
 
     await page.click('[data-tab=auto]');
     await page.click('#autoStartBtn');
+    if (SHOT_DIR) { await new Promise((r) => setTimeout(r, 3000)); await shot('6_running'); }
     await page.waitForFunction(() => window.__stb.state.autoReport && !window.__stb.state.batch, { timeout: 120000 });
     const auto = await page.evaluate(() => {
       const r = window.__stb.state.autoReport;
@@ -91,6 +109,16 @@ const SHORT = {
     check('자동 시험: 종합 PASS', auto.pass === true && !auto.aborted);
     const autoUi = await page.evaluate(() => ({ verdict: document.querySelector('#autoVerdict').textContent, rows: document.querySelectorAll('#autoSteps tr').length }));
     check('자동 시험 탭: 종합 판정·단계표 표시', autoUi.verdict === 'PASS' && autoUi.rows === 8, JSON.stringify(autoUi));
+    const viz = await page.evaluate(() => ({
+      pct: document.querySelector('#ringPct').textContent,
+      label: document.querySelector('#ringLabel').textContent,
+      segs: [...document.querySelectorAll('#autoTrack .seg')].map((s) => s.className.replace('seg', '').trim()),
+      chip: document.querySelector('#autoChip').hidden ? null : document.querySelector('#autoChip').textContent,
+      pass: document.querySelector('#vizPass').textContent,
+    }));
+    check('전체 진행 그래프: 100%·판정 색 채움·칩', viz.pct.startsWith('100') && viz.label === 'PASS'
+      && viz.segs.every((c) => c === 'pass' || c === 'info') && /PASS/.test(viz.chip ?? ''), JSON.stringify(viz));
+    await new Promise((r) => setTimeout(r, 500));
     await shot('6a_auto');
 
     await page.click('#autoReportBtn');
@@ -142,21 +170,36 @@ const SHORT = {
     const cfg = await page.evaluate(() => window.__stb.state.servoCfg);
     check('연결 시 서보 설정 읽기(운전모드·위치 한계)', cfg?.runMode === 1 && Math.abs(cfg.limitMaxDeg - 60) < 0.1, JSON.stringify({ runMode: cfg?.runMode, min: cfg?.limitMinDeg, max: cfg?.limitMaxDeg }));
 
+    const setField = (f, v) => page.$eval(`[data-field="${f}"]`, (el, v) => { el.value = v; el.dispatchEvent(new Event('change', { bubbles: true })); }, v);
     await page.click('[data-tab=slew]');
-    await page.$eval('[data-field="slew.up"]', (el) => { el.value = '70'; el.dispatchEvent(new Event('change', { bubbles: true })); });
+    await setField('slew.up', '70');
+    const gate = await page.evaluate(() => ({
+      banner: document.querySelector('#profBanner').hidden ? '' : document.querySelector('#profBanner').textContent,
+      disabled: document.querySelector('[data-run=slew]').disabled,
+    }));
+    check('작동기 가동범위(±60°) 밖 명령 → 기준 오류로 실행 버튼 비활성', /±60°/.test(gate.banner) && gate.disabled, JSON.stringify(gate));
+    // 시뮬레이터는 연결 시점의 작동기 값(±60°)으로 만들어져 있어, 연결 중 기준만 넓히면 서보 쪽 한계 검사를 따로 시험할 수 있다
+    await setField('actuator.travelDeg', '90');
     const before = await page.evaluate(() => window.__stb.results.slew.at);
     await page.click('[data-run=slew]');
     await new Promise((r) => setTimeout(r, 200));
     const blocked = await page.$eval('[data-progtext=slew]', (el) => el.textContent);
     const after = await page.evaluate(() => window.__stb.results.slew.at);
-    check('위치 한계(±60°) 밖 명령 시험은 실행 차단', /실행 불가/.test(blocked) && before === after, blocked);
-    await page.$eval('[data-field="slew.up"]', (el) => { el.value = '30'; el.dispatchEvent(new Event('change', { bubbles: true })); });
+    check('기준을 통과해도 서보 실제 한계(±60°) 밖이면 실행 차단', /실행 불가/.test(blocked) && before === after, blocked);
+    await setField('slew.up', '30');
+    await setField('actuator.travelDeg', '60');
 
     await page.click('[data-tab=manual]');
     await page.$eval('#manDeg', (el) => { el.value = '80'; });
     await page.click('#manSend');
     const clamped = await page.$eval('#manDeg', (el) => Number(el.value));
     check('수동 명령은 서보 위치 한계로 제한', Math.abs(clamped - 60) < 0.1, String(clamped));
+
+    await page.click('[data-tab=settings]');
+    await page.$eval('[data-field="actuator.model"]', (el) => { el.value = 'TEST-X'; el.dispatchEvent(new Event('change', { bubbles: true })); });
+    const sub = await page.$eval('#appSub', (el) => el.textContent);
+    check('작동기 설정 → 제목 반영', /TEST-X/.test(sub), sub);
+    await page.$eval('[data-field="actuator.model"]', (el) => { el.value = 'MDB961WP-CAN 28V'; el.dispatchEvent(new Event('change', { bubbles: true })); });
 
     await page.click('[data-tab=log]');
     await new Promise((r) => setTimeout(r, 400));

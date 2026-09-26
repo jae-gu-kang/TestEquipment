@@ -5,7 +5,7 @@ import { SimTransport } from './transport-sim.js';
 import { HitecServo } from './servo.js';
 import { normalizeProfile } from './profile.js';
 import {
-  FeedbackSource, TempMonitor, applySetup, readServoConfig, checkCommandRange, runAuto,
+  FeedbackSource, TempMonitor, applySetup, readServoConfig, checkCommandRange, runAuto, estimateSteps, autoProgress,
   runComm, runSquare, runStair, runSlew, runFreq, runTemp,
 } from './procedures.js';
 import { REG } from './protocol.js';
@@ -186,4 +186,51 @@ test('자동 시험: 중지하면 진행 중 항목은 중단, 남은 항목은 
   assert.equal(rep.pass, false);
   assert.ok(rep.steps.some((s) => s.status === 'aborted'));
   assert.equal(rep.steps.at(-1).status, 'skip');
+});
+
+test('예상 소요시간: 단계별 시험 조건으로 계산', () => {
+  const est = estimateSteps(normalizeProfile({
+    comm: { count: 1000 },
+    square: { periodS: 2, cycles: 3 },
+    stair: { steps: 4, dwellS: 1, returnDown: true },
+    slew: { holdS: 1 },
+    freq: { freqs: '1, 10', settleCycles: 2, measCycles: 5, minMeasS: 1 },
+  }));
+  const s = Object.fromEntries(est.map((x) => [x.key, x.sec]));
+  assert.deepEqual(est.map((x) => x.key), ['pre', 'comm', 'square', 'stair', 'slew', 'freq', 'temp']);
+  near(s.square, 7, 1e-9);           // 반주기 1s × (준비 1 + 6 단계)
+  near(s.stair, 9, 1e-9);            // 단 9개(0..4, 3..0) × 1s
+  near(s.slew, 5, 1e-9);             // 자세 5개 × 1s
+  near(s.freq, 0.5 + (2 + 5 + 0.2) + (0.2 + 1 + 0.2), 1e-9);
+  assert.ok(s.comm > 0 && s.pre > 0 && s.temp > 0);
+});
+
+test('전체 진행률: 완료 단계 + 진행 중 단계 비율, 남은 예상 시간', () => {
+  const est = [{ key: 'a', sec: 2 }, { key: 'b', sec: 6 }, { key: 'c', sec: 2 }];
+  const p0 = autoProgress(est, {});
+  assert.equal(p0.frac, 0);
+  near(p0.remainingSec, 10, 1e-9);
+  const p1 = autoProgress(est, { a: { status: 'pass' }, b: { status: 'run', frac: 0.5 } });
+  near(p1.frac, 0.5, 1e-9);
+  near(p1.remainingSec, 5, 1e-9);
+  assert.equal(p1.done, 1);
+  const p2 = autoProgress(est, { a: { status: 'pass' }, b: { status: 'fail' }, c: { status: 'skip' } });
+  assert.equal(p2.frac, 1);
+  assert.deepEqual([p2.pass, p2.fail, p2.done], [1, 1, 3]);
+});
+
+test('전체 진행률: 오류·중단은 FAIL, 측정은 완료로 집계, 진행 비율은 0~1로 제한', () => {
+  const est = [{ key: 'a', sec: 1 }, { key: 'b', sec: 1 }, { key: 'c', sec: 1 }, { key: 'd', sec: 1 }];
+  const p = autoProgress(est, { a: { status: 'error' }, b: { status: 'aborted' }, c: { status: 'info' }, d: { status: 'run', frac: 5 } });
+  assert.deepEqual([p.done, p.pass, p.fail], [3, 0, 2]);
+  near(p.frac, 1, 1e-9);
+  near(autoProgress(est, { a: { status: 'run' } }).frac, 0, 1e-9);
+  near(autoProgress(est, { a: { status: 'run', frac: -1 } }).frac, 0, 1e-9);
+  assert.equal(autoProgress([], {}).frac, 0);
+});
+
+test('4. 최대 각속도: 작동기 스펙 무부하 속도 환산값을 참고로 기록', async () => {
+  const r = await runSlew(ctx());
+  near(metric(r, '스펙 무부하 속도 환산').value, 60 / 0.14, 1e-9);
+  assert.equal(metric(r, '스펙 무부하 속도 환산').pass, null);
 });

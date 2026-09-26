@@ -50,6 +50,12 @@ test('SimServo: 서보모드 한계(MDB961WP 스펙 ±60°) 밖 명령은 무시
   assert.equal(s.regs.get(REG.POSITION_NEW), Math.round(8192 + 50 * COUNTS_PER_DEG));
 });
 
+test('SimServo: 작동기 가동범위 옵션으로 위치 한계 설정', () => {
+  const s = new SimServo({ ...quiet, travelDeg: 90 });
+  assert.equal(s.regs.get(REG.POSITION_MAX_LIMIT), 8192 + 4096);
+  assert.equal(s.regs.get(REG.POSITION_MIN_LIMIT), 8192 - 4096);
+});
+
 test('SimServo: 가감속 시간 설정 시 가속 제한', () => {
   const fast = new SimServo(quiet), slow = new SimServo(quiet);
   slow.handle(buildWrite(1, REG.SPEED_UP, 200));

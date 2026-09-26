@@ -3,6 +3,8 @@ import { parseFreqList } from './analysis.js';
 
 export const DEFAULT_PROFILE = {
   name: 'MDB961WP-CAN 기본',
+  // 스펙시트(MDB961WP-CAN 28V v2.1_02) 값
+  actuator: { maker: 'Hitec', model: 'MDB961WP-CAN 28V', ratedVoltage: 28, noLoadSpeed: 0.14, stallTorque: 60, travelDeg: 60 },
   general: { centerCounts: 8192, upSign: 1, feedback: 'stream', streamHz: 100, tempPollMs: 1000, cmdRateHz: 100, latencyCompMs: 0 },
   setup: { apply: true, speedUp: 0, speedEs: 0, speedDn: 0, deadband: 0, posLockTorqueRatio: 100 },
   comm: { count: 1000, addr: 0xC6, timeoutMs: 50, maxErrPct: 0 },
@@ -16,6 +18,14 @@ export const DEFAULT_PROFILE = {
 // 필드 정의: 화면 입력칸과 JSON 정규화가 같은 정의를 쓴다.
 // crit: true 는 합격 기준(성적서에 기준값으로 표기)
 export const SECTIONS = [
+  { key: 'actuator', title: '작동기', fields: [
+    { k: 'maker', label: '제조사', type: 'text' },
+    { k: 'model', label: '모델', type: 'text' },
+    { k: 'ratedVoltage', label: '정격 전압', unit: 'V', type: 'num' },
+    { k: 'noLoadSpeed', label: '무부하 속도', unit: 's/60°', type: 'num', help: '최대 각속도 결과에 스펙 환산값(60 ÷ 이 값)을 참고로 표시' },
+    { k: 'stallTorque', label: '정지 토크', unit: 'kgf·cm', type: 'num' },
+    { k: 'travelDeg', label: '서보모드 가동범위(±)', unit: '°', type: 'num', help: '시험 명령각이 이 범위를 넘으면 기준 오류. 실제 한계는 연결 시 서보에서 읽어 다시 확인' },
+  ] },
   { key: 'general', title: '공통', fields: [
     { k: 'centerCounts', label: '중립 위치', unit: 'counts', type: 'int', help: '0°에 해당하는 서보 위치값 (4096 = 90°)' },
     { k: 'upSign', label: '상향(+) 방향', type: 'select', options: [[1, '위치값 증가 방향'], [-1, '위치값 감소 방향']] },
@@ -119,6 +129,7 @@ export function normalizeProfile(src = {}) {
   return out;
 }
 
+// 매뉴얼상 서보모드 한계 레지스터가 허용하는 최대(1366/15018)
 const SERVO_RANGE_DEG = 150;
 
 export function validateProfile(p) {
@@ -144,8 +155,11 @@ export function validateProfile(p) {
   if (!(p.temp.maxGapS > 0 && p.temp.durationS > 0)) e.push('온도: 공백 기준·시험 시간은 양수');
   if (p.setup.speedEs > p.setup.speedDn) e.push('시험 전 설정: SPEED_ES 는 SPEED_DN 이하여야 함 (매뉴얼 2-8.14)');
 
+  const a = p.actuator;
+  if (!(a.noLoadSpeed > 0 && a.travelDeg > 0 && a.travelDeg <= SERVO_RANGE_DEG)) e.push(`작동기: 무부하 속도는 양수, 가동범위는 0~${SERVO_RANGE_DEG}°`);
+  const travel = Math.min(a.travelDeg > 0 ? a.travelDeg : SERVO_RANGE_DEG, SERVO_RANGE_DEG);
   for (const x of commandExtremes(p)) {
-    if (Math.max(Math.abs(x.min), Math.abs(x.max)) > SERVO_RANGE_DEG) e.push(`${x.name}: 명령각이 서보모드 가동범위(±150°)를 넘음`);
+    if (Math.max(Math.abs(x.min), Math.abs(x.max)) > travel + 1e-9) e.push(`${x.name}: 명령각이 작동기 가동범위(±${travel}°)를 넘음`);
   }
   return e;
 }

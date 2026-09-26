@@ -312,6 +312,7 @@ export async function runSlew({ servo, profile: p, signal, onProgress }) {
     metric(`상향 ${other} slew`, s.method === 'max' ? upE.avg : upE.max, '°/s'),
     metric('하향 구간 통과시간', down.tHigh != null ? down.tHigh - down.tLow : null, 'ms'),
     metric('상향 구간 통과시간', upE.tHigh != null ? upE.tHigh - upE.tLow : null, 'ms'),
+    metric('스펙 무부하 속도 환산', p.actuator?.noLoadSpeed > 0 ? 60 / p.actuator.noLoadSpeed : null, '°/s'),
   ], { detail: [down, upE], series: data });
   for (const d of [down, upE]) {
     if (d.avg == null) r.warnings.push(`${d.label}: ${s.lowPct}–${s.highPct}% 구간을 통과하지 못했습니다`);
@@ -515,4 +516,46 @@ export async function runAuto({ servo, profile: p, signal, onEvent }, monitor) {
     pass: !aborted && !pre.fatal && all.length === AUTO_STEPS.length && all.every((r) => r.pass !== false),
     aborted, steps, results, servoConfig: pre.cfg, servoInfo: pre.info, profile: JSON.parse(JSON.stringify(p)),
   };
+}
+
+// ─── 진행률 ─────────────────────────────────────────────
+// 시험 조건으로 단계별 소요시간(s)을 추정한다. 전체 진행 그래프의 구간 폭·남은 시간에 쓴다.
+const COMM_SEC_PER_TX = 0.004;
+
+export function estimateSteps(p) {
+  const freqSec = 0.5 + parseFreqList(p.freq.freqs)
+    .reduce((s, f) => s + p.freq.settleCycles / f + Math.max(p.freq.measCycles / f, p.freq.minMeasS) + 0.2, 0);
+  const stairLevels = p.stair.steps + 1 + (p.stair.returnDown ? p.stair.steps : 0);
+  const sec = {
+    pre: 1,
+    comm: p.comm.count * COMM_SEC_PER_TX,
+    square: (1 + 2 * p.square.cycles) * p.square.periodS / 2,
+    stair: stairLevels * p.stair.dwellS,
+    slew: 5 * p.slew.holdS,
+    freq: freqSec,
+    temp: 0.5,
+  };
+  return AUTO_STEPS.map((s) => ({ key: s.key, sec: sec[s.key] }));
+}
+
+const DONE = new Set(['pass', 'fail', 'info', 'error', 'skip', 'aborted']);
+const FAILED = new Set(['fail', 'error', 'aborted']);
+
+// states: { key: { status, frac } } — 완료 단계는 예상 시간 전부, 진행 중 단계는 frac 만큼 반영
+export function autoProgress(estimates, states) {
+  const total = estimates.reduce((s, x) => s + x.sec, 0);
+  let doneSec = 0, done = 0, pass = 0, fail = 0;
+  for (const { key, sec } of estimates) {
+    const st = states[key];
+    if (!st) continue;
+    if (DONE.has(st.status)) {
+      doneSec += sec;
+      done++;
+      if (st.status === 'pass') pass++;
+      if (FAILED.has(st.status)) fail++;
+    } else if (st.status === 'run') {
+      doneSec += sec * Math.min(1, Math.max(0, st.frac ?? 0));
+    }
+  }
+  return { frac: total ? doneSec / total : 0, remainingSec: Math.max(0, total - doneSec), totalSec: total, done, pass, fail };
 }

@@ -9,6 +9,8 @@ export const SIM_DEFAULTS = {
   noiseCounts: 1.5,
   tAmbC: 28,
   voltage: 2800,
+  // MDB961WP 스펙시트: 서보모드 기본 ±60° (매뉴얼 한계 레지스터 기본값 ±150° 와 다름)
+  travelDeg: 60,
 };
 
 const RESET_REGS = {
@@ -25,9 +27,6 @@ const RESET_REGS = {
   [REG.INERTIA_RANGE]: 1,
   [REG.POS_LOCK_TIME]: 3,
   [REG.POS_LOCK_TORQUE_RATIO]: 100,
-  // 매뉴얼 기본값은 1366/15018(±150°)이지만 MDB961WP 스펙시트는 서보모드 기본 ±60°
-  [REG.POSITION_MAX_LIMIT]: 8192 + 2731,
-  [REG.POSITION_MIN_LIMIT]: 8192 - 2731,
   [REG.POS_MID]: 8192,
   [REG.TORQUE_MAX]: 4095,
   [REG.PRODUCT_NO]: 961,
@@ -40,6 +39,9 @@ export class SimServo {
     this.o = { ...SIM_DEFAULTS, ...opts };
     this.regs = new Map(Object.entries(RESET_REGS).map(([k, v]) => [Number(k), v]));
     this.regs.set(REG.ID, this.o.id);
+    const lim = Math.round(this.o.travelDeg * COUNTS_PER_DEG);
+    this.regs.set(REG.POSITION_MAX_LIMIT, 8192 + lim);
+    this.regs.set(REG.POSITION_MIN_LIMIT, 8192 - lim);
     this.p = 8192;
     this.v = 0;
     this.act = 0;

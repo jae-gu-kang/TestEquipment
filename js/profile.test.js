@@ -80,7 +80,34 @@ test('commandExtremes: 시험별 명령각 최소·최대', () => {
   assert.deepEqual(neg.find((x) => x.key === 'stair'), { key: 'stair', name: '계단파', min: -5, max: 10 });
 });
 
-test('validate: 서보모드 가동범위(±150°) 초과 명령 금지', () => {
-  const errs = validateProfile(normalizeProfile({ slew: { up: 200 } }));
-  assert.ok(errs.some((e) => e.includes('±150')), errs.join('|'));
+test('validate: 작동기 가동범위(기본 ±60°) 초과 명령 금지', () => {
+  const errs = validateProfile(normalizeProfile({ slew: { up: 70 } }));
+  assert.ok(errs.some((e) => e.includes('±60')), errs.join('|'));
+  const wide = normalizeProfile({ actuator: { travelDeg: 150 }, slew: { up: 70 } });
+  assert.deepEqual(validateProfile(wide), []);
+});
+
+test('작동기 기본값: Hitec MDB961WP-CAN 28V 스펙시트', () => {
+  const a = DEFAULT_PROFILE.actuator;
+  assert.equal(a.maker, 'Hitec');
+  assert.equal(a.model, 'MDB961WP-CAN 28V');
+  assert.equal(a.ratedVoltage, 28);
+  assert.equal(a.noLoadSpeed, 0.14);
+  assert.equal(a.stallTorque, 60);
+  assert.equal(a.travelDeg, 60);
+});
+
+test('validate: 작동기 스펙 값 — 조건별로 각각 오류', () => {
+  const bad = (a) => validateProfile(normalizeProfile({ actuator: a })).some((e) => e.startsWith('작동기'));
+  assert.equal(bad({ noLoadSpeed: 0 }), true);
+  assert.equal(bad({ noLoadSpeed: -0.1 }), true);
+  assert.equal(bad({ travelDeg: -1 }), true);
+  assert.equal(bad({ travelDeg: 151 }), true);
+  assert.equal(bad({ travelDeg: 150 }), false);
+  assert.equal(bad({}), false);
+});
+
+test('validate: 명령각이 가동범위와 정확히 같으면 허용, 넘으면 오류', () => {
+  assert.deepEqual(validateProfile(normalizeProfile({ slew: { up: 60 } })), []);
+  assert.ok(validateProfile(normalizeProfile({ slew: { up: 60.01 } })).some((e) => e.includes('±60')));
 });

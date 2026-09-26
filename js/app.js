@@ -5,7 +5,7 @@ import { SimTransport } from './transport-sim.js';
 import { SlcanTransport } from './transport-slcan.js';
 import { SECTIONS, DEFAULT_PROFILE, normalizeProfile, validateProfile, loadStoredProfile, storeProfile } from './profile.js';
 import {
-  FeedbackSource, TempMonitor, applySetup, readServoConfig, checkCommandRange, runAuto, AUTO_STEPS,
+  FeedbackSource, TempMonitor, applySetup, readServoConfig, checkCommandRange, runAuto, AUTO_STEPS, estimateSteps, autoProgress,
   runComm, runSquare, runStair, runSlew, runFreq, runTemp,
 } from './procedures.js';
 
@@ -21,7 +21,8 @@ const TESTS = [
   { key: 'freq', label: '5 주파수 응답', run: runFreq },
   { key: 'temp', label: '6 온도', run: (ctx, windowStart) => runTemp(ctx, state.monitor, windowStart) },
 ];
-const TABS = [['manual', '0 수동'], ...TESTS.map((t) => [t.key, t.label]), ['auto', '자동 시험'], ['report', '성적서'], ['settings', '기준 설정'], ['log', 'CAN 로그']];
+const TABS = [['auto', '자동 시험'], ['manual', '0 수동'], ...TESTS.map((t) => [t.key, t.label]), ['report', '성적서'], ['settings', '기준 설정'], ['log', 'CAN 로그']];
+const SEG_LABEL = { pre: '사전 점검', comm: '통신', square: '구형파', stair: '계단파', slew: '각속도', freq: '주파수', temp: '온도' };
 const COLOR = { cmd: '#0071e3', fb: '#ff9f0a', ref: '#8e8e93', ok: '#28a745', ng: '#ff3b30', teal: '#30b0c7', purple: '#af52de' };
 
 const state = {
@@ -79,20 +80,22 @@ function buildTestPanels() {
     const sec = SECTIONS.find((s) => s.key === t.key);
     return `
 <section class="panel" data-panel="${t.key}" hidden>
-  <div class="grid">
-    <div class="card"><div class="s-title">${esc(sec.title)} — 시험 조건 · 판정 기준</div><div class="form" data-form="${t.key}"></div></div>
-    <div class="card">
-      <div class="run-row">
-        <button class="btn primary" data-run="${t.key}" disabled>실행</button>
-        <button class="btn" data-stop disabled>중지</button>
-        <span class="verdict" data-verdict="${t.key}" hidden></span>
-      </div>
-      <div class="progress"><div class="bar" data-bar="${t.key}"></div></div>
-      <div class="prog-text" data-progtext="${t.key}">${t.key === 'temp' ? '온도는 연결 중 항상 수집됩니다. 실행하면 설정 시간 동안의 수신 연속성과 온도를 판정합니다.' : ''}</div>
-      <table class="metrics" data-metrics="${t.key}"></table>
-      <ul class="warnings" data-warn="${t.key}"></ul>
+  <div class="card run-card">
+    <div class="run-row">
+      <div class="s-title" style="margin:0 8px 0 0">${esc(sec.title)}</div>
+      <button class="btn primary" data-run="${t.key}" disabled>실행</button>
+      <button class="btn" data-stop disabled>중지</button>
+      <span class="verdict" data-verdict="${t.key}" hidden></span>
     </div>
+    <div class="progress"><div class="bar" data-bar="${t.key}"></div></div>
+    <div class="prog-text" data-progtext="${t.key}">${t.key === 'temp' ? '온도는 연결 중 항상 수집됩니다. 실행하면 설정 시간 동안의 수신 연속성과 온도를 판정합니다.' : ''}</div>
+    <table class="metrics" data-metrics="${t.key}"></table>
+    <ul class="warnings" data-warn="${t.key}"></ul>
   </div>
+  <details class="card fold">
+    <summary>시험 조건 · 판정 기준 <span class="fold-hint" data-foldhint="${t.key}"></span></summary>
+    <div class="form fold-body" data-form="${t.key}"></div>
+  </details>
   <div class="card" data-chartcard="${t.key}" ${t.key === 'comm' ? 'hidden' : ''}></div>
   <div class="card" data-detail="${t.key}" hidden></div>
 </section>`;
@@ -131,6 +134,29 @@ function renderForm(el) {
 function renderAllForms() {
   $$('[data-form]').forEach(renderForm);
   $('#profName').value = profile.name;
+  renderFoldHints();
+}
+
+// 접힌 상태에서도 핵심 값이 보이도록 요약 한 줄
+function renderFoldHints() {
+  const valText = (sec, f) => {
+    const v = profile[sec][f.k];
+    if (f.k === 'minSlew' && !v) return '측정만';
+    const u = f.k === 'maxOvershoot' ? (profile.square.overshootUnit === 'pct' ? '%' : '°') : (f.unit || '').split(' ')[0];
+    return u === '°' || u === '%' ? `${v}${u}` : `${v}${u ? ' ' + u : ''}`;
+  };
+  const a = profile.actuator, g = profile.general;
+  for (const el of $$('[data-foldhint]')) {
+    const sec = el.dataset.foldhint;
+    if (sec === 'actuator') { el.textContent = `${a.maker} ${a.model} · ${a.ratedVoltage} V · ${a.noLoadSpeed} s/60° · ±${a.travelDeg}°`; continue; }
+    if (sec === 'general') { el.textContent = `피드백 ${g.feedback === 'stream' ? '스트림' : '폴링'} ${g.streamHz} Hz · 명령 ${g.cmdRateHz} Hz`; continue; }
+    const crit = SECTIONS.find((s) => s.key === sec).fields.filter((f) => f.crit);
+    el.textContent = '기준 · ' + crit.map((f) => `${f.label} ${valText(sec, f)}`).join(' · ');
+  }
+}
+
+function updateActuatorText() {
+  $('#appSub').textContent = `${profile.actuator.maker} ${profile.actuator.model} · CAN 2.0A/B`;
 }
 
 function setProfile(p) {
@@ -140,6 +166,9 @@ function setProfile(p) {
   state.servo?.configure({ center: profile.general.centerCounts, sign: profile.general.upSign });
   renderBanner();
   renderSettingsExtras();
+  renderFoldHints();
+  updateActuatorText();
+  refreshEstimates();
   updateButtons();
 }
 
@@ -188,6 +217,24 @@ function updateButtons() {
   if (!state.connected) { pill.className = 'pill off'; pill.textContent = state.connecting ? '연결 중…' : '연결 안 됨'; }
   else if (state.estop) { pill.className = 'pill warn'; pill.textContent = '비상정지'; }
   else { pill.className = 'pill on'; pill.textContent = `연결됨 · ${state.transport.name}${busy ? ' · 시험 중' : ''}`; }
+  $('#connDot').className = 'conn-dot' + (state.connected ? (state.estop ? ' warn' : ' on') : '');
+  $('#connTitle').textContent = pill.textContent;
+  updateConnSummary();
+  const hero = $('#autoStartBtn');
+  hero.classList.toggle('running', state.batch);
+  hero.lastChild.textContent = state.batch ? ' 자동 시험 진행 중…' : ' 자동 시험 시작';
+}
+
+function updateConnSummary() {
+  const kind = $('#transport').value;
+  const sp = $('#samplePoint').value;
+  $('#connSub').textContent = [
+    kind === 'sim' ? '시뮬레이터' : 'CANable slcan',
+    `${$('#bitrate').value} kbps`,
+    kind === 'slcan' ? `샘플 포인트 ${sp ? sp + '%' : '어댑터 기본'}` : null,
+    `서보 ID ${$('#servoId').value}`,
+    `CAN ID ${$('#canId').value}${$('#canExt').checked ? ' (29bit)' : ''}`,
+  ].filter(Boolean).join(' · ');
 }
 
 function updateDots() {
@@ -234,7 +281,12 @@ async function connect() {
     const canId = parseCanId($('#canId').value, ext);
     const servoId = Math.max(0, Math.min(254, Math.round(Number($('#servoId').value) || 0)));
     const bitrateKbps = Number($('#bitrate').value);
-    tr = kind === 'sim' ? new SimTransport({}, { lossPct: Number($('#simLoss').value) || 0 }) : new SlcanTransport();
+    // 작동기 값이 잘못돼 있으면(음수 속도 등) 가상 서보가 폭주하므로 시뮬 기본값을 쓴다
+    const act = profile.actuator;
+    const actOk = act.noLoadSpeed > 0 && act.travelDeg > 0 && act.travelDeg <= 150;
+    tr = kind === 'sim'
+      ? new SimTransport(actOk ? { vmaxDegS: 60 / act.noLoadSpeed, travelDeg: act.travelDeg } : {}, { lossPct: Number($('#simLoss').value) || 0 })
+      : new SlcanTransport();
     tr.onError = (e) => { logBuf.push({ t: performance.now(), dir: 'ERR', text: e.message }); msg(e.message, 'err'); };
     const spSel = $('#samplePoint').value;
     const samplePct = kind === 'slcan' && spSel ? Number(spSel) : null;
@@ -396,22 +448,76 @@ function renderAutoSteps() {
     }).join('');
 }
 
-function setAutoProgress(frac, text) {
-  $('#autoBar').style.width = `${Math.round(frac * 100)}%`;
-  $('#autoText').textContent = text;
+// 전체 진행 그래프: 원형 진행률 + 예상 소요시간 비례 트랙
+const RING_C = 2 * Math.PI * 52;
+const auto = { est: [], t0: null, t1: null, verdict: null };
+const mmss = (sec) => {
+  if (sec == null || !Number.isFinite(sec)) return '—';
+  const s = Math.max(0, Math.round(sec));
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+};
+
+function buildTrack() {
+  $('#autoTrack').innerHTML = auto.est.map((x) => {
+    const grow = Number.isFinite(x.sec) ? Math.max(x.sec, 0.6) : 1;
+    return `<div class="seg" data-seg="${x.key}" style="flex:${grow} 1 0" title="${esc(SEG_LABEL[x.key])} · 예상 ${mmss(x.sec)}">
+      <div class="seg-bar"><div class="seg-fill"></div></div>
+      <div class="seg-label">${esc(SEG_LABEL[x.key])}</div>
+      <div class="seg-time">${mmss(x.sec)}</div>
+    </div>`;
+  }).join('');
+}
+
+function refreshEstimates() {
+  if (state.batch) return;
+  auto.est = estimateSteps(profile);
+  buildTrack();
+  renderAutoViz();
+}
+
+function renderAutoViz() {
+  const p = autoProgress(auto.est, autoView);
+  const running = state.batch && auto.t0 != null;
+  const fin = auto.verdict;
+  const fill = $('#ringFill');
+  fill.style.strokeDasharray = `${RING_C}`;
+  fill.style.strokeDashoffset = `${RING_C * (1 - p.frac)}`;
+  fill.classList.toggle('pass', !running && fin === 'pass');
+  fill.classList.toggle('fail', !running && (fin === 'fail' || fin === 'aborted'));
+  $('#ringPct').innerHTML = `${Math.round(p.frac * 100)}<small>%</small>`;
+  const label = $('#ringLabel');
+  const [lt, lc] = running ? ['진행 중', ''] : fin === 'pass' ? ['PASS', 'pass'] : fin === 'fail' ? ['FAIL', 'fail'] : fin === 'aborted' ? ['중단', 'fail'] : ['대기', ''];
+  label.textContent = lt;
+  label.className = 'ring-label ' + lc;
+  const elapsed = auto.t0 != null ? ((auto.t1 ?? performance.now()) - auto.t0) / 1000 : 0;
+  $('#vizElapsed').textContent = mmss(elapsed);
+  $('#vizRemain').previousElementSibling.textContent = running || fin ? '남은 예상' : '예상 소요';
+  $('#vizRemain').textContent = mmss(running ? p.remainingSec : fin ? 0 : p.totalSec);
+  $('#vizPass').textContent = p.pass;
+  $('#vizFail').textContent = p.fail;
+  for (const seg of $$('#autoTrack [data-seg]')) {
+    const v = autoView[seg.dataset.seg] ?? { status: 'wait' };
+    seg.className = 'seg ' + (v.status === 'wait' ? '' : v.status);
+    $('.seg-fill', seg).style.width = v.status === 'run' ? `${Math.round((v.frac ?? 0) * 100)}%` : '';
+  }
+  const chip = $('#autoChip');
+  chip.hidden = !running && !fin;
+  chip.className = 'auto-chip' + (!running && fin ? (fin === 'pass' ? ' pass' : ' fail') : '');
+  chip.textContent = running ? `자동 시험 ${Math.round(p.frac * 100)}% · ${mmss(p.remainingSec)} 남음` : `자동 시험 ${lt}`;
 }
 
 function onAutoEvent(e) {
   const i = AUTO_STEPS.findIndex((s) => s.key === e.key);
   autoView[e.key] = { status: e.status === 'progress' ? 'run' : e.status, text: e.text ?? '', at: e.at, frac: e.frac };
-  const frac = e.status === 'progress' ? e.frac ?? 0 : e.status === 'run' ? 0 : 1;
-  setAutoProgress((i + frac) / AUTO_STEPS.length, `${AUTO_STEPS[i].title} — ${e.text ?? ''}`);
+  $('#autoText').textContent = `${AUTO_STEPS[i].title} — ${e.text ?? ''}`;
   if (TESTS.some((t) => t.key === e.key) && (e.status === 'progress' || e.status === 'run')) setProgress(e.key, e.frac ?? 0, `자동 시험 · ${e.text ?? ''}`);
   renderAutoSteps();
+  renderAutoViz();
 }
 
 async function runAutoUI() {
   if (profileErrors.length) { showTab('settings'); return; }
+  const prof = JSON.parse(JSON.stringify(profile));
   state.batch = true;
   state.ac = new AbortController();
   state.hiddenDuring = document.hidden;
@@ -419,15 +525,16 @@ async function runAutoUI() {
   for (const t of TESTS) { clearResult(t.key); setProgress(t.key, 0, ''); }
   state.autoReport = null;
   autoView = Object.fromEntries(AUTO_STEPS.map((s) => [s.key, { status: 'wait', text: '' }]));
+  Object.assign(auto, { est: estimateSteps(prof), t0: performance.now(), t1: null, verdict: null });
+  buildTrack();
   $('#autoVerdict').hidden = true;
+  $('#autoText').textContent = '사전 점검 중…';
   renderAutoSteps();
-  setAutoProgress(0, '사전 점검 중…');
   updateButtons();
   updateDots();
+  renderAutoViz();
   try {
-    const rep = await runAuto({
-      servo: state.servo, profile: JSON.parse(JSON.stringify(profile)), signal: state.ac.signal, onEvent: onAutoEvent,
-    }, state.monitor);
+    const rep = await runAuto({ servo: state.servo, profile: prof, signal: state.ac.signal, onEvent: onAutoEvent }, state.monitor);
     if (state.hiddenDuring) {
       for (const r of Object.values(rep.results)) r.warnings.unshift('측정 중 탭이 백그라운드였음 — 브라우저 타이머 지연으로 결과 신뢰도 낮음');
     }
@@ -437,20 +544,24 @@ async function runAutoUI() {
     for (const t of TESTS) {
       if (results[t.key]) { renderResult(t.key); setProgress(t.key, 1, `자동 시험 · ${new Date(results[t.key].at).toLocaleTimeString()}`); }
     }
+    auto.verdict = rep.aborted ? 'aborted' : rep.pass ? 'pass' : 'fail';
     const [txt, cls] = rep.aborted ? ['중단 · FAIL', 'fail'] : verdictText(rep.pass);
     const v = $('#autoVerdict');
     v.hidden = false;
     v.className = 'verdict ' + cls;
     v.textContent = txt;
-    setAutoProgress(1, `${rep.aborted ? '중지됨' : '완료'} · 소요 ${rep.durationS.toFixed(1)} s — 성적서에 기록했습니다`);
+    $('#autoText').textContent = `${rep.aborted ? '중지됨' : '완료'} · 소요 ${rep.durationS.toFixed(1)} s — 성적서에 기록했습니다`;
     renderReport();
   } catch (e) {
-    setAutoProgress(0, `오류: ${e.message}`);
+    auto.verdict = 'fail';
+    $('#autoText').textContent = `오류: ${e.message}`;
   } finally {
+    auto.t1 = performance.now();
     state.batch = false;
     state.ac = null;
     updateButtons();
     updateDots();
+    renderAutoViz();
   }
 }
 
@@ -710,6 +821,7 @@ function liveTick() {
   const fl = flags == null ? '—' : FLAG_BITS.filter(([b]) => flags & (1 << b)).map(([, n]) => n).join(' ') || 'OK';
   $('#lvFlags').textContent = fl;
   $('#lvFlagsTile').classList.toggle('alarm', flags != null && fl !== 'OK');
+  if (state.batch && auto.t0 != null) renderAutoViz();
   if (state.tab === 'manual') updateManualChart(now);
   if (state.tab === 'temp' && tick % 10 === 0) updateTempChart();
   if (state.tab === 'log' && tick % 3 === 0) renderLog();
@@ -784,7 +896,7 @@ function renderReportHead() {
     ['시험 방식', method],
     ['시리얼 번호', $('#repSerial').value || '—'],
     ['작업자', $('#repOperator').value || '—'],
-    ['대상', 'Hitec MDB961WP-CAN 28V'],
+    ['대상', (({ maker, model }) => `${maker} ${model}`)((fromAuto ? rep.profile : profile).actuator)],
     ['서보', info.product != null ? `제품 ${info.product} · 버전 0x${info.version.toString(16).toUpperCase()} · ID ${info.id}` : '—'],
     ['서보 설정', cfg ? servoCfgText(cfg) : '—'],
     ['통신', connText(fromAuto ? rep.connection : state.conn)],
@@ -984,7 +1096,12 @@ function init() {
     if (state.connected) { e.preventDefault(); e.returnValue = ''; }
   });
 
-  showTab('manual');
+  $('#autoChip').addEventListener('click', () => showTab('auto'));
+  for (const id of ['transport', 'bitrate', 'samplePoint', 'servoId', 'canId', 'canExt']) $('#' + id).addEventListener('input', updateConnSummary);
+  updateActuatorText();
+  refreshEstimates();
+
+  showTab('auto');
   updateButtons();
   setInterval(liveTick, 100);
 
