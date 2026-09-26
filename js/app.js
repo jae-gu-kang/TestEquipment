@@ -23,7 +23,8 @@ const TESTS = [
 ];
 const TABS = [['auto', '자동 시험'], ['manual', '0 수동'], ...TESTS.map((t) => [t.key, t.label]), ['report', '성적서'], ['settings', '기준 설정'], ['log', 'CAN 로그']];
 const SEG_LABEL = { pre: '사전 점검', comm: '통신', square: '구형파', stair: '계단파', slew: '각속도', freq: '주파수', temp: '온도' };
-const COLOR = { cmd: '#0071e3', fb: '#ff9f0a', ref: '#8e8e93', ok: '#28a745', ng: '#ff3b30', teal: '#30b0c7', purple: '#af52de' };
+// 차트 색은 CSS 토큰(--chart-*)에서 읽는다 — init() 에서 채움
+const COLOR = {};
 
 const state = {
   connected: false, connecting: false, running: null, batch: false, estop: false,
@@ -1007,7 +1008,7 @@ function exportJson() {
   const { rep, fromAuto, mixed } = reportSource();
   const [overall] = overallVerdict();
   const out = {
-    app: '작동기 점검장비', format: 2, exportedAt: new Date().toISOString(), overall,
+    app: '작동기 자동점검', format: 2, exportedAt: new Date().toISOString(), overall,
     meta: {
       serial: $('#repSerial').value, operator: $('#repOperator').value, note: $('#repNote').value,
       connection: state.conn, servo: state.info, servoConfig: state.servoCfg,
@@ -1070,6 +1071,11 @@ function wireSettings() {
 
 // ─── 초기화 ─────────────────────────────────────────────
 function init() {
+  const cssVar = (n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+  Object.assign(COLOR, {
+    cmd: cssVar('--chart-cmd'), fb: cssVar('--chart-fb'), ref: cssVar('--chart-ref'), ok: cssVar('--chart-ok'),
+    ng: cssVar('--chart-ng'), teal: cssVar('--chart-accent'), purple: cssVar('--chart-alt'),
+  });
   buildTabs();
   buildTestPanels();
   renderAllForms();

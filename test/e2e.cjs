@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-/* 점검장비 브라우저 E2E — 시스템 Chrome(헤드리스) + 시뮬레이터
+/* 작동기 자동점검 브라우저 E2E — 시스템 Chrome(헤드리스) + 시뮬레이터
  * 연결 → 수동 명령 → 전체 점검(1→6) → 기준 변경 시 불합격 전환 → 비상정지 → 해제
  * 실행: node test/e2e.cjs   (SHOT_DIR=경로 를 주면 스크린샷 저장)
  * puppeteer-core 는 상위 Actuator/node_modules 의 것을 쓴다. */
@@ -11,7 +11,7 @@ const puppeteer = require('puppeteer-core');
 const ROOT = path.resolve(__dirname, '..');
 const CHROME = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 const SHOT_DIR = process.env.SHOT_DIR;
-const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json' };
+const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png' };
 
 const results = [];
 function check(name, pass, detail = '') {
@@ -175,6 +175,13 @@ const SHORT = {
       await new Promise((r) => setTimeout(r, 300));
       const n = await page.$$eval(`[data-panel=${k}] canvas`, (cs) => cs.filter((c) => c.width > 0 && c.height > 0).length);
       check(`${k} 그래프 렌더`, n > 0, `${n}개`);
+      if (k === 'square') {
+        const colors = await page.evaluate(() => {
+          const c = window.Chart.getChart(document.querySelector('[data-panel=square] canvas'));
+          return c.data.datasets.map((d) => d.borderColor);
+        });
+        check('차트 색은 CSS 토큰(--chart-*)에서 읽음', colors[0] === '#0071e3' && colors[1] === '#ff9f0a', JSON.stringify(colors));
+      }
       await shot('tab_' + k);
     }
 

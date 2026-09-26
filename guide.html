@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>사용 방법 — 작동기 점검장비</title>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='5' fill='%2330b0c7'/%3E%3Cpath d='M3 12h4l3-8 4 16 3-8h4' fill='none' stroke='white' stroke-width='2'/%3E%3C/svg%3E">
+<title>사용 방법 — 작동기 자동점검</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='5' fill='%23051766'/%3E%3Cpath d='M9 6.5v11l8.5-5.5z' fill='white'/%3E%3C/svg%3E">
 <!-- 실제 앱과 같은 스타일시트: 원형 버튼·트랙·배지가 실제 화면과 똑같이 보이게 -->
 <link rel="stylesheet" href="css/style.css">
 <style>
@@ -12,9 +12,9 @@
 
 .hero-head > .seg-ctl { flex: 0 0 auto; }
 #hint { margin-top: 12px; }
-.seg-ctl { display: inline-flex; padding: 3px; border-radius: 10px; background: rgba(118,118,128,0.1); gap: 2px; }
+.seg-ctl { display: inline-flex; padding: 3px; border-radius: 10px; background: var(--bg); box-shadow: inset 0 0 0 1px var(--border); gap: 2px; }
 .seg-ctl button { border: 0; background: transparent; color: var(--text2); font-size: 12px; font-weight: 600; padding: 6px 12px; border-radius: 8px; cursor: pointer; }
-.seg-ctl button[aria-pressed="true"] { background: #fff; color: var(--text); box-shadow: 0 1px 3px rgba(0,0,0,0.12); }
+.seg-ctl button[aria-pressed="true"] { background: var(--surface); color: var(--text); box-shadow: 0 1px 3px rgba(var(--shadow-rgb),0.12); }
 .seg-ctl button:disabled { cursor: default; opacity: 0.55; }
 .seg-ctl button:focus-visible { outline: 2px solid var(--blue); outline-offset: 1px; }
 .demo-note { font-size: 12px; color: var(--text2); margin-top: 4px; }
@@ -23,7 +23,7 @@
 .demo-report h3 { font-size: 14px; font-weight: 600; display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
 
 .states { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; margin-top: 14px; }
-.state { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 18px 8px 16px; border-radius: 12px; background: rgba(118,118,128,0.05); }
+.state { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 18px 8px 16px; border-radius: 12px; background: rgba(var(--neutral-rgb),0.05); }
 .state-name { font-size: 12px; font-weight: 600; }
 .state-desc { font-size: 11.5px; color: var(--text2); text-align: center; line-height: 1.5; min-height: 3em; }
 .ring-group.sm, .ring-group.sm .ring-btn { width: 128px; height: 128px; }
@@ -37,11 +37,11 @@
 .steps li { counter-increment: step; display: grid; grid-template-columns: 30px 1fr; gap: 12px; align-items: start; }
 .steps li::before {
   content: counter(step); width: 26px; height: 26px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
-  font-size: 12px; font-weight: 700; color: #fff; background: linear-gradient(135deg, #30b0c7, #0a84d6);
+  font-size: 12px; font-weight: 700; color: var(--on-accent); background: linear-gradient(135deg, var(--accent), var(--accent-2));
 }
 .steps b { display: block; font-size: 13px; margin-bottom: 3px; }
 .steps p { font-size: 12.5px; color: var(--text2); line-height: 1.6; }
-.steps kbd { font-family: inherit; font-size: 11.5px; font-weight: 600; padding: 1px 6px; border-radius: 5px; border: 1px solid var(--border); background: #fff; color: var(--text); }
+.steps kbd { font-family: inherit; font-size: 11.5px; font-weight: 600; padding: 1px 6px; border-radius: 5px; border: 1px solid var(--border); background: var(--surface); color: var(--text); }
 
 @media (max-width: 900px) { .states { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 </style>
@@ -49,10 +49,10 @@
 <body>
 <header class="titlebar">
   <div class="titlebar-left">
-    <a class="home-btn" href="index.html" data-back>‹ 점검장비</a>
+    <a class="home-btn" href="index.html" data-back>‹ 자동점검</a>
     <div class="titlebar-divider"></div>
-    <div class="app-icon"><svg viewBox="0 0 24 24"><path d="M3 12h4l3-8 4 16 3-8h4"/></svg></div>
-    <span class="app-name">작동기 점검장비</span>
+    <div class="app-icon"><svg viewBox="0 0 24 24"><path d="M8 5.5v13l10.5-6.5z"/></svg></div>
+    <span class="app-name">작동기 자동점검</span>
     <span class="app-sub">사용 방법</span>
   </div>
   <div class="titlebar-right">
@@ -89,7 +89,7 @@
           <svg class="ring" viewBox="0 0 120 120" aria-hidden="true">
             <defs>
               <linearGradient id="ringGrad" x1="0" y1="0" x2="1" y2="1">
-                <stop offset="0%" stop-color="#30b0c7"/><stop offset="100%" stop-color="#0071e3"/>
+                <stop offset="0%" style="stop-color: var(--accent)"/><stop offset="100%" style="stop-color: var(--accent-light)"/>
               </linearGradient>
             </defs>
             <circle class="ring-track" cx="60" cy="60" r="52"/>
@@ -316,8 +316,8 @@
   }
   render();
 
-  // 점검장비 화면에서 새 탭으로 열린 안내라면 이 탭을 닫고 원래 화면으로 돌아간다.
-  // 여기서 점검장비를 또 열면 이미 연결된 CANable 포트와 부딪힐 수 있다.
+  // 자동점검 화면에서 새 탭으로 열린 안내라면 이 탭을 닫고 원래 화면으로 돌아간다.
+  // 여기서 자동점검을 또 열면 이미 연결된 CANable 포트와 부딪힐 수 있다.
   for (const a of document.querySelectorAll('a[data-back]')) {
     a.addEventListener('click', (e) => {
       if (history.length > 1) return;

@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>작동기 점검장비 — Engineering Tools</title>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='5' fill='%2330b0c7'/%3E%3Cpath d='M3 12h4l3-8 4 16 3-8h4' fill='none' stroke='white' stroke-width='2'/%3E%3C/svg%3E">
+<title>작동기 자동점검 — Engineering Tools</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='5' fill='%23051766'/%3E%3Cpath d='M9 6.5v11l8.5-5.5z' fill='white'/%3E%3C/svg%3E">
 <link rel="stylesheet" href="css/style.css">
 <script src="vendor/chart.umd.min.js"></script>
 <script type="module" src="js/app.js"></script>
@@ -23,8 +23,8 @@
   <div class="titlebar-left">
     <a class="home-btn" href="https://jaegukang.com">‹ Engineering Tools</a>
     <div class="titlebar-divider"></div>
-    <div class="app-icon"><svg viewBox="0 0 24 24"><path d="M3 12h4l3-8 4 16 3-8h4"/></svg></div>
-    <span class="app-name">작동기 점검장비</span>
+    <div class="app-icon"><svg viewBox="0 0 24 24"><path d="M8 5.5v13l10.5-6.5z"/></svg></div>
+    <span class="app-name">작동기 자동점검</span>
     <span class="app-sub" id="appSub">Hitec MDB961WP-CAN 28V · CAN 2.0A/B</span>
   </div>
   <div class="titlebar-right">
@@ -118,7 +118,7 @@
             <svg class="ring" viewBox="0 0 120 120" aria-hidden="true">
               <defs>
                 <linearGradient id="ringGrad" x1="0" y1="0" x2="1" y2="1">
-                  <stop offset="0%" stop-color="#30b0c7"/><stop offset="100%" stop-color="#0071e3"/>
+                  <stop offset="0%" style="stop-color: var(--accent)"/><stop offset="100%" style="stop-color: var(--accent-light)"/>
                 </linearGradient>
               </defs>
               <circle class="ring-track" cx="60" cy="60" r="52"/>

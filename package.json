@@ -5,7 +5,8 @@
   "scripts": {
     "test": "node --test js/*.test.js",
     "e2e": "node test/e2e.cjs",
-    "serve": "python3 -m http.server 8080"
+    "serve": "python3 -m http.server 8080",
+    "test:tools": "python3 -m unittest discover -s tests/tools"
   },
   "devDependencies": {
     "puppeteer-core": "^25.3.0"
