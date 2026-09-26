@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>사용 방법 — 작동기 점검장비</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='5' fill='%2330b0c7'/%3E%3Cpath d='M3 12h4l3-8 4 16 3-8h4' fill='none' stroke='white' stroke-width='2'/%3E%3C/svg%3E">
+<!-- 실제 앱과 같은 스타일시트: 원형 버튼·트랙·배지가 실제 화면과 똑같이 보이게 -->
+<link rel="stylesheet" href="css/style.css">
+<style>
+.guide-hero .hero-title { font-size: 22px; }
+
+.hero-head > .seg-ctl { flex: 0 0 auto; }
+#hint { margin-top: 12px; }
+.seg-ctl { display: inline-flex; padding: 3px; border-radius: 10px; background: rgba(118,118,128,0.1); gap: 2px; }
+.seg-ctl button { border: 0; background: transparent; color: var(--text2); font-size: 12px; font-weight: 600; padding: 6px 12px; border-radius: 8px; cursor: pointer; }
+.seg-ctl button[aria-pressed="true"] { background: #fff; color: var(--text); box-shadow: 0 1px 3px rgba(0,0,0,0.12); }
+.seg-ctl button:disabled { cursor: default; opacity: 0.55; }
+.seg-ctl button:focus-visible { outline: 2px solid var(--blue); outline-offset: 1px; }
+.demo-note { font-size: 12px; color: var(--text2); margin-top: 4px; }
+
+.demo-report { margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--border2); }
+.demo-report h3 { font-size: 14px; font-weight: 600; display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+
+.states { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; margin-top: 14px; }
+.state { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 18px 8px 16px; border-radius: 12px; background: rgba(118,118,128,0.05); }
+.state-name { font-size: 12px; font-weight: 600; }
+.state-desc { font-size: 11.5px; color: var(--text2); text-align: center; line-height: 1.5; min-height: 3em; }
+.ring-group.sm, .ring-group.sm .ring-btn { width: 128px; height: 128px; }
+.ring-group.sm .ring-pct { font-size: 24px; }
+.ring-group.sm .ring-icon svg { width: 28px; height: 28px; }
+.ring-group.sm .ring-label { font-size: 11px; }
+.ring-group.sm .ring-side { width: 34px; height: 34px; }
+.state .ring-btn, .state .ring-side { pointer-events: none; }
+
+.steps { list-style: none; counter-reset: step; display: grid; gap: 12px; margin-top: 12px; }
+.steps li { counter-increment: step; display: grid; grid-template-columns: 30px 1fr; gap: 12px; align-items: start; }
+.steps li::before {
+  content: counter(step); width: 26px; height: 26px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+  font-size: 12px; font-weight: 700; color: #fff; background: linear-gradient(135deg, #30b0c7, #0a84d6);
+}
+.steps b { display: block; font-size: 13px; margin-bottom: 3px; }
+.steps p { font-size: 12.5px; color: var(--text2); line-height: 1.6; }
+.steps kbd { font-family: inherit; font-size: 11.5px; font-weight: 600; padding: 1px 6px; border-radius: 5px; border: 1px solid var(--border); background: #fff; color: var(--text); }
+
+@media (max-width: 900px) { .states { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+</style>
+</head>
+<body>
+<header class="titlebar">
+  <div class="titlebar-left">
+    <a class="home-btn" href="index.html" data-back>‹ 점검장비</a>
+    <div class="titlebar-divider"></div>
+    <div class="app-icon"><svg viewBox="0 0 24 24"><path d="M3 12h4l3-8 4 16 3-8h4"/></svg></div>
+    <span class="app-name">작동기 점검장비</span>
+    <span class="app-sub">사용 방법</span>
+  </div>
+  <div class="titlebar-right">
+    <a class="btn small primary" href="index.html" data-back>실제 화면에서 연습하기</a>
+  </div>
+</header>
+
+<main class="wrap">
+  <section class="card hero guide-hero">
+    <div class="hero-head">
+      <div>
+        <div class="hero-eyebrow">사용 방법</div>
+        <h1 class="hero-title">원 하나로 시작부터 성적서까지</h1>
+        <p class="hero-desc">자동 시험 화면 가운데 원이 상태에 따라 역할을 바꿉니다. 아래 원을 직접 눌러 보고, 사용 순서를 따라 실제 화면에서 연습해 보세요.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="card hero" aria-labelledby="demoTitle">
+    <div class="hero-head">
+      <div>
+        <div class="hero-eyebrow">직접 눌러 보기</div>
+        <h2 class="hero-title" id="demoTitle">자동 시험 체험</h2>
+        <p class="demo-note">가상 서보로 약 9초 동안 7단계를 진행합니다. 값은 예시이고 실제 장비와 연결되지 않습니다.</p>
+      </div>
+      <div class="seg-ctl" role="group" aria-label="결과 예시">
+        <button type="button" id="optPass" aria-pressed="true">PASS 예시</button>
+        <button type="button" id="optFail" aria-pressed="false">FAIL 예시</button>
+      </div>
+    </div>
+    <div class="viz">
+      <div class="ring-group">
+        <button type="button" id="ringBtn" class="ring-btn" data-phase="idle" aria-label="자동 시험 시작">
+          <svg class="ring" viewBox="0 0 120 120" aria-hidden="true">
+            <defs>
+              <linearGradient id="ringGrad" x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0%" stop-color="#30b0c7"/><stop offset="100%" stop-color="#0071e3"/>
+              </linearGradient>
+            </defs>
+            <circle class="ring-track" cx="60" cy="60" r="52"/>
+            <circle class="ring-fill" id="ringFill" cx="60" cy="60" r="52" stroke-dasharray="326.73" stroke-dashoffset="326.73"/>
+          </svg>
+          <span class="ring-center">
+            <span class="ring-icon" id="ringIcon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.5v13l10.5-6.5z"/></svg></span>
+            <span class="ring-pct" id="ringPct" hidden></span>
+            <span class="ring-label" id="ringLabel">자동 시험 시작</span>
+          </span>
+        </button>
+        <button type="button" id="sideBtn" class="ring-side" hidden></button>
+      </div>
+      <div class="viz-main">
+        <div class="viz-stats">
+          <div class="stat"><div class="k">경과</div><div class="v" id="elapsed">0:00</div></div>
+          <div class="stat"><div class="k" id="remainK">예상 소요</div><div class="v" id="remain">0:09</div></div>
+          <div class="stat"><div class="k">PASS</div><div class="v pass" id="nPass">0</div></div>
+          <div class="stat"><div class="k">FAIL</div><div class="v fail" id="nFail">0</div></div>
+        </div>
+        <div class="track" id="track"></div>
+        <div class="prog-text" id="hint" aria-live="polite">가운데 원을 눌러 자동 시험을 시작합니다.</div>
+      </div>
+    </div>
+    <div class="demo-report" id="report" hidden>
+      <h3>성적서 <span class="badge" id="repBadge"></span> <span class="prog-text">(예시 값)</span></h3>
+      <table id="repTable"></table>
+    </div>
+  </section>
+
+  <section class="card" aria-labelledby="statesTitle">
+    <div class="s-title" id="statesTitle">상태 다섯 가지</div>
+    <p class="demo-note">원은 한 자리에 그대로 있고 모양과 글자만 바뀝니다. 오른쪽 아래 작은 원은 진행 중에는 중지, 끝난 뒤에는 다시 시작입니다.</p>
+    <div class="states" id="states"></div>
+  </section>
+
+  <section class="card" aria-labelledby="stepsTitle">
+    <div class="s-title" id="stepsTitle">사용 순서</div>
+    <ol class="steps">
+      <li><div><b>연결</b><p>맨 위 <kbd>연결</kbd>을 누릅니다. 장비 없이 연습할 때는 전송수단을 <kbd>시뮬레이터</kbd>로 둡니다. 실제 서보는 <kbd>통신 설정</kbd>을 펼쳐 CANable · 비트레이트 · 서보 ID 를 맞춥니다(Chrome 또는 Edge).</p></div></li>
+      <li><div><b>자동 시험</b><p>자동 시험 화면 가운데 원을 누릅니다. 사전 점검(기준 · 서보 응답 · 운전모드 · 위치 한계) 뒤 통신 · 구형파 · 계단파 · 최대 각속도 · 주파수 응답 · 온도를 순서대로 수행합니다.</p></div></li>
+      <li><div><b>진행 확인 · 중지</b><p>다른 탭을 보고 있어도 제목줄 칩에 진행률과 남은 시간이 나옵니다. 멈출 때는 원 옆 작은 원(■)을, 위험할 때는 제목줄의 빨간 <kbd>비상정지</kbd>를 누릅니다.</p></div></li>
+      <li><div><b>성적서</b><p>끝나면 원에 PASS 또는 FAIL 이 뜹니다. 원을 눌러 성적서를 보고, 시리얼 번호 · 작업자를 적은 뒤 <kbd>JSON 저장</kbd> · <kbd>CSV 저장</kbd> · <kbd>인쇄 / PDF</kbd> 중 하나로 남깁니다.</p></div></li>
+      <li><div><b>기준 바꾸기</b><p><kbd>기준 설정</kbd> 탭과 각 시험 탭의 <kbd>시험 조건 · 판정 기준</kbd>을 펼쳐 바꿉니다. 바꾼 기준은 이 브라우저에 저장되고, 성적서에는 시험 당시 기준이 함께 기록됩니다.</p></div></li>
+    </ol>
+    <div class="run-row" style="margin-top:16px">
+      <a class="btn primary" href="index.html" data-back>실제 화면에서 연습하기 (시뮬레이터)</a>
+    </div>
+  </section>
+</main>
+
+<script>
+(() => {
+  const RING_C = 2 * Math.PI * 52;
+  const STOP = '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6.5" y="6.5" width="11" height="11" rx="2"/></svg>';
+  const RESTART = '<svg viewBox="0 0 24 24" aria-hidden="true" class="stroke"><path d="M19 12a7 7 0 1 1-2.05-4.95"/><path d="M19 4.5v4h-4"/></svg>';
+  const PLAY = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.5v13l10.5-6.5z"/></svg>';
+
+  // 체험용 단계 · 소요(s) · 결과 문구 (예시 값)
+  const STEPS = [
+    { key: 'pre', label: '사전 점검', sec: 0.6, text: '서보 응답 · 운전모드 · 위치 한계 정상' },
+    { key: 'comm', label: '통신', sec: 0.8, text: '에러율 0 %' },
+    { key: 'square', label: '구형파', sec: 1.2, text: '오버슈트 0.22° · 정상상태 오차 0.007°', failText: '오버슈트 0.64° (기준 ≤ 0.5°)' },
+    { key: 'stair', label: '계단파', sec: 1.5, text: '정상상태 오차 0.005°' },
+    { key: 'slew', label: '각속도', sec: 1.2, text: '하향 431.8 °/s · 상향 430.7 °/s', info: true },
+    { key: 'freq', label: '주파수', sec: 3.0, text: '판정 대역폭 7.64 Hz (기준 ≥ 6 Hz)' },
+    { key: 'temp', label: '온도', sec: 0.4, text: '수신 공백 0.26 s · MCU 31 ℃' },
+  ];
+  const TOTAL = STEPS.reduce((s, x) => s + x.sec, 0);
+  const $ = (id) => document.getElementById(id);
+  const mmss = (s) => { s = Math.max(0, Math.round(s)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; };
+
+  let failMode = false, runFail = false, phase = 'idle', status = {}, t0 = 0, elapsed = 0, raf = 0, verdict = null;
+
+  $('track').innerHTML = STEPS.map((s) => `
+    <div class="seg" data-key="${s.key}" style="flex:${s.sec} 1 0">
+      <div class="seg-bar"><div class="seg-fill"></div></div>
+      <div class="seg-label">${s.label}</div>
+      <div class="seg-time">${mmss(s.sec)}</div>
+    </div>`).join('');
+
+  function progress() {
+    let done = 0;
+    for (const s of STEPS) {
+      const st = status[s.key];
+      if (st && st !== 'run' && st !== 'wait') done += s.sec;
+      if (st === 'run') done += s.sec * s.frac;
+    }
+    return done / TOTAL;
+  }
+
+  function render() {
+    const frac = phase === 'idle' ? 0 : progress();
+    const failed = phase === 'done' && verdict !== 'pass';
+    const btn = $('ringBtn');
+    btn.dataset.phase = phase;
+    btn.classList.toggle('fail', failed);
+    btn.disabled = phase === 'run';
+    $('optPass').disabled = $('optFail').disabled = phase === 'run';
+    const fill = $('ringFill');
+    fill.style.strokeDashoffset = `${RING_C * (1 - frac)}`;
+    fill.classList.toggle('pass', phase === 'done' && !failed);
+    fill.classList.toggle('fail', failed);
+    $('ringIcon').hidden = phase !== 'idle';
+    const pct = $('ringPct');
+    pct.hidden = phase === 'idle';
+    const vText = { pass: 'PASS', fail: 'FAIL', aborted: '중단' }[verdict] || '';
+    pct.className = 'ring-pct' + (phase === 'done' ? (failed ? ' big fail' : ' big pass') : '');
+    pct.innerHTML = phase === 'run' ? `${Math.round(frac * 100)}<small>%</small>` : vText;
+    const label = phase === 'idle' ? '자동 시험 시작' : phase === 'run' ? '진행 중' : '성적서 보기 ›';
+    $('ringLabel').textContent = label;
+    btn.setAttribute('aria-label', phase === 'done' ? `${vText} — 성적서 보기` : phase === 'run' ? `진행 중 ${Math.round(frac * 100)}%` : label);
+
+    const side = $('sideBtn');
+    side.hidden = phase === 'idle';
+    const kind = phase === 'run' ? 'stop' : 'restart';
+    if (side.dataset.kind !== kind) {
+      side.dataset.kind = kind;
+      side.className = 'ring-side ' + kind;
+      side.innerHTML = kind === 'stop' ? STOP : RESTART;
+      side.title = kind === 'stop' ? '중지' : '다시 시작';
+      side.setAttribute('aria-label', side.title);
+    }
+
+    $('elapsed').textContent = mmss(elapsed);
+    $('remainK').textContent = phase === 'idle' ? '예상 소요' : '남은 예상';
+    $('remain').textContent = mmss(phase === 'idle' ? TOTAL : phase === 'done' ? 0 : TOTAL * (1 - frac));
+    $('nPass').textContent = Object.values(status).filter((s) => s === 'pass').length;
+    $('nFail').textContent = Object.values(status).filter((s) => s === 'fail' || s === 'aborted').length;
+    for (const el of document.querySelectorAll('#track .seg')) {
+      const st = status[el.dataset.key] || 'wait';
+      el.className = 'seg ' + (st === 'wait' ? '' : st);
+      const step = STEPS.find((s) => s.key === el.dataset.key);
+      el.querySelector('.seg-fill').style.width = st === 'run' ? `${Math.round(step.frac * 100)}%` : '';
+    }
+  }
+
+  function tick(now) {
+    elapsed = (now - t0) / 1000;
+    let t = elapsed;
+    for (const s of STEPS) {
+      if (t >= s.sec) {
+        if (status[s.key] === 'wait' || status[s.key] === 'run') {
+          const bad = runFail && s.key === 'square';
+          status[s.key] = bad ? 'fail' : s.info ? 'info' : 'pass';
+          $('hint').textContent = `${s.label} — ${bad ? s.failText : s.text}`;
+        }
+        t -= s.sec;
+      } else {
+        status[s.key] = 'run';
+        s.frac = t / s.sec;
+        break;
+      }
+    }
+    // 종합 판정은 항목 결과에서 — 항목과 어긋날 수 없다
+    if (elapsed >= TOTAL) { finish(Object.values(status).includes('fail') ? 'fail' : 'pass'); return; }
+    render();
+    raf = requestAnimationFrame(tick);
+  }
+
+  function start() {
+    status = Object.fromEntries(STEPS.map((s) => [s.key, 'wait']));
+    STEPS.forEach((s) => { s.frac = 0; });
+    verdict = null;
+    runFail = failMode;
+    phase = 'run';
+    t0 = performance.now();
+    elapsed = 0;
+    $('report').hidden = true;
+    $('hint').textContent = '사전 점검 중…';
+    render();
+    $('sideBtn').focus();
+    raf = requestAnimationFrame(tick);
+  }
+
+  function finish(v) {
+    cancelAnimationFrame(raf);
+    verdict = v;
+    phase = 'done';
+    if (v === 'aborted') {
+      for (const s of STEPS) {
+        if (status[s.key] === 'run') status[s.key] = 'aborted';
+        else if (status[s.key] === 'wait') status[s.key] = 'skip';
+      }
+    }
+    $('hint').textContent = v === 'aborted' ? '중지됨 — 남은 단계는 건너뜀. 원을 눌러 성적서를 봅니다.' : `완료 · 소요 ${elapsed.toFixed(1)} s — 원을 눌러 성적서를 봅니다.`;
+    render();
+  }
+
+  function showReport() {
+    const vText = { pass: 'PASS', fail: 'FAIL', aborted: 'FAIL (중단)' }[verdict];
+    const badge = $('repBadge');
+    badge.textContent = `종합 ${vText}`;
+    badge.className = 'badge ' + (verdict === 'pass' ? 'pass' : 'fail');
+    const row = (s) => {
+      const st = status[s.key];
+      const cls = st === 'pass' ? 'pass' : st === 'info' || st === 'skip' ? 'info' : 'fail';
+      const txt = { pass: 'PASS', fail: 'FAIL', info: '측정', skip: '건너뜀', aborted: '중단' }[st] || '—';
+      const val = st === 'skip' || st === 'aborted' ? '—' : st === 'fail' ? s.failText : s.text;
+      return `<tr><td>${s.label}</td><td><span class="badge ${cls}">${txt}</span></td><td>${val}</td></tr>`;
+    };
+    $('repTable').innerHTML = '<tr><th>항목</th><th>판정</th><th>주요 측정값</th></tr>' + STEPS.map(row).join('');
+    $('report').hidden = false;
+    phase = 'idle';
+    $('hint').textContent = '성적서를 확인했습니다. 원이 다시 시작 버튼으로 돌아왔습니다.';
+    render();
+    $('report').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+
+  $('ringBtn').addEventListener('click', () => {
+    if (phase === 'idle') start();
+    else if (phase === 'done') showReport();
+  });
+  $('sideBtn').addEventListener('click', () => {
+    if (phase === 'run') finish('aborted');
+    else if (phase === 'done') start();
+  });
+  for (const [id, mode] of [['optPass', false], ['optFail', true]]) {
+    $(id).addEventListener('click', () => {
+      failMode = mode;
+      $('optPass').setAttribute('aria-pressed', String(!mode));
+      $('optFail').setAttribute('aria-pressed', String(mode));
+    });
+  }
+  render();
+
+  // 점검장비 화면에서 새 탭으로 열린 안내라면 이 탭을 닫고 원래 화면으로 돌아간다.
+  // 여기서 점검장비를 또 열면 이미 연결된 CANable 포트와 부딪힐 수 있다.
+  for (const a of document.querySelectorAll('a[data-back]')) {
+    a.addEventListener('click', (e) => {
+      if (history.length > 1) return;
+      e.preventDefault();
+      window.close();
+      setTimeout(() => { location.href = a.href; }, 150);
+    });
+  }
+
+  const examples = [
+    { name: '① 연결 전', desc: '회색 · 눌리지 않음<br>연결하면 시작 버튼이 됨', phase: 'idle', disabled: true, label: '연결 후 시작' },
+    { name: '② 대기', desc: '원 전체가 시작 버튼', phase: 'idle', label: '자동 시험 시작' },
+    { name: '③ 진행 중', desc: '링이 차오름 · %<br>작은 원 = 중지', phase: 'run', frac: 0.42, side: 'stop' },
+    { name: '④ 완료 PASS', desc: '누르면 성적서<br>작은 원 = 다시 시작', phase: 'done', verdict: 'pass', side: 'restart' },
+    { name: '⑤ 완료 FAIL', desc: '누르면 성적서<br>작은 원 = 다시 시작', phase: 'done', verdict: 'fail', side: 'restart' },
+  ];
+  $('states').innerHTML = examples.map((e) => {
+    const failed = e.phase === 'done' && e.verdict !== 'pass';
+    const frac = e.phase === 'run' ? e.frac : e.phase === 'done' ? 1 : 0;
+    const center = e.phase === 'idle'
+      ? `<span class="ring-icon">${PLAY}</span><span class="ring-label">${e.label}</span>`
+      : e.phase === 'run'
+        ? `<span class="ring-pct">${Math.round(e.frac * 100)}<small>%</small></span><span class="ring-label">진행 중</span>`
+        : `<span class="ring-pct big ${failed ? 'fail' : 'pass'}">${failed ? 'FAIL' : 'PASS'}</span><span class="ring-label">성적서 보기 ›</span>`;
+    const side = e.side ? `<span class="ring-side ${e.side}" aria-hidden="true">${e.side === 'stop' ? STOP : RESTART}</span>` : '';
+    return `<div class="state">
+      <div class="ring-group sm">
+        <button type="button" class="ring-btn${failed ? ' fail' : ''}" data-phase="${e.phase}" ${e.disabled ? 'disabled' : ''} tabindex="-1" aria-hidden="true">
+          <svg class="ring" viewBox="0 0 120 120"><circle class="ring-track" cx="60" cy="60" r="52"/>
+            <circle class="ring-fill${e.phase === 'done' ? (failed ? ' fail' : ' pass') : ''}" cx="60" cy="60" r="52" stroke-dasharray="${RING_C}" stroke-dashoffset="${RING_C * (1 - frac)}"/></svg>
+          <span class="ring-center">${center}</span>
+        </button>
+        ${side}
+      </div>
+      <div class="state-name">${e.name}</div>
+      <div class="state-desc">${e.desc}</div>
+    </div>`;
+  }).join('');
+})();
+</script>
+</body>
+</html>

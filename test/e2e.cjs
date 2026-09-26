@@ -273,6 +273,59 @@ const SHORT = {
     check('연결 해제', true);
     check('연결 해제 후에는 이탈 확인 없음', await leaveGuard() === false);
 
+    const links = await page.$$eval('a[href="guide.html"]', (as) => as.map((a) => a.target));
+    check('실제 화면에서 사용 방법 링크 2곳(새 탭)', links.length === 2 && links.every((t) => t === '_blank'), JSON.stringify(links));
+
+    const guide = await browser.newPage();
+    await guide.setViewport({ width: 1280, height: 900 });
+    guide.on('pageerror', (e) => errors.push('guide pageerror: ' + e.message));
+    guide.on('console', (m) => { if (m.type() === 'error') errors.push('guide console: ' + m.text()); });
+    await guide.goto(url.replace('index.html', 'guide.html'), { waitUntil: 'load' });
+    const g0 = await guide.evaluate(() => ({
+      states: document.querySelectorAll('#states .state').length,
+      steps: document.querySelectorAll('.steps li').length,
+      ringW: document.querySelector('#ringBtn').getBoundingClientRect().width,
+      sameCss: [...document.styleSheets].some((ss) => (ss.href || '').endsWith('css/style.css')),
+    }));
+    check('사용 방법 페이지: 앱과 같은 스타일, 상태 5가지·사용 순서 5단계', g0.states === 5 && g0.steps === 5 && g0.ringW >= 140 && g0.sameCss, JSON.stringify(g0));
+    await guide.click('#ringBtn');
+    await new Promise((r) => setTimeout(r, SHOT_DIR ? 3000 : 600));
+    if (SHOT_DIR) await guide.screenshot({ path: path.join(SHOT_DIR, 'guide.png'), fullPage: true });
+    const gRun = await guide.evaluate(() => ({ phase: document.querySelector('#ringBtn').dataset.phase, side: document.querySelector('#sideBtn').dataset.kind, locked: document.querySelector('#optFail').disabled }));
+    await guide.click('#sideBtn');
+    // 중지 시점에 따라 앞 단계는 끝났을 수 있다: 완료…, 중단 1개, 건너뜀…
+    const abortPattern = (cells) => {
+      const i = cells.indexOf('중단');
+      return i >= 0 && cells.slice(0, i).every((c) => c === 'PASS' || c === '측정') && cells.slice(i + 1).every((c) => c === '건너뜀');
+    };
+    const gDone = await guide.evaluate(() => ({ phase: document.querySelector('#ringBtn').dataset.phase, pct: document.querySelector('#ringPct').textContent, side: document.querySelector('#sideBtn').dataset.kind }));
+    await guide.click('#ringBtn');
+    const gRep = await guide.evaluate(() => ({
+      phase: document.querySelector('#ringBtn').dataset.phase, report: !document.querySelector('#report').hidden,
+      cells: [...document.querySelectorAll('#repTable tr td:nth-child(2)')].map((td) => td.textContent),
+    }));
+    check('사용 방법 체험: 시작(예시 잠금) → 중지 → 성적서(중단·건너뜀) → 다시 시작 버튼', gRun.phase === 'run' && gRun.side === 'stop' && gRun.locked
+      && gDone.phase === 'done' && gDone.pct === '중단' && gDone.side === 'restart'
+      && gRep.phase === 'idle' && gRep.report && abortPattern(gRep.cells), JSON.stringify({ gRun, gDone, gRep }));
+
+    await guide.click('#optFail');
+    await guide.click('#ringBtn');
+    await guide.waitForFunction(() => document.querySelector('#ringBtn').dataset.phase === 'done', { timeout: 15000 });
+    const gFail = await guide.evaluate(() => ({
+      pct: document.querySelector('#ringPct').textContent, nFail: document.querySelector('#nFail').textContent, side: document.querySelector('#sideBtn').dataset.kind,
+    }));
+    await guide.click('#ringBtn');
+    const gFailRep = await guide.evaluate(() => ({ badge: document.querySelector('#repBadge').className, cells: [...document.querySelectorAll('#repTable tr td:nth-child(2)')].map((td) => td.textContent) }));
+    check('사용 방법 체험(FAIL 예시 완주): 종합 FAIL 과 항목 결과가 일치', gFail.pct === 'FAIL' && gFail.nFail === '1' && gFail.side === 'restart'
+      && /fail/.test(gFailRep.badge) && gFailRep.cells.filter((c) => c === 'FAIL').length === 1, JSON.stringify({ gFail, gFailRep }));
+    await guide.click('#ringBtn');
+    await new Promise((r) => setTimeout(r, 300));
+    await guide.click('#sideBtn');
+    await guide.click('#sideBtn');
+    const gRestart = await guide.evaluate(() => document.querySelector('#ringBtn').dataset.phase);
+    check('사용 방법 체험: 완료 후 작은 원(↻)으로 다시 시작', gRestart === 'run', gRestart);
+    await guide.close();
+
     check('페이지 오류 없음', errors.length === 0, errors.join(' | '));
   } finally {
     await browser.close();
